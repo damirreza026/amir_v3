@@ -1,0 +1,11 @@
+{
+    "mcpServers": {
+        "laravel-boost": {
+            "command": "D:\\FlyEnv-Data\\app\\php-8.4.21\\php.exe",
+            "args": [
+                "D:\\LaraClass\\amir_v3\\artisan",
+                "boost:mcp"
+            ]
+        }
+    }
+}
