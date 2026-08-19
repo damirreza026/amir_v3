@@ -3,11 +3,11 @@
     <div class="flex justify-between items-center">
         <div>
             <h1 class="text-xl font-bold">{{ Auth::user()->profile->first_name . ' ' . Auth::user()->profile->last_name }}</h1>
-            <p class="text-sm text-gray-500">Product Categories</p>
+            <p class="text-sm text-gray-500">دسته بندی محصولات</p>
         </div>
         <div>
             <flux:button wire:click="openSaveModal" variant="primary" color="green">
-                Add new item to your inventory
+                افزودن دسته بندی جدید
             </flux:button>
         </div>
     </div>
@@ -31,11 +31,11 @@
     <flux:table :paginate="$this->categories">
         <flux:table.columns>
             <flux:table.column sortable :sorted="$sortBy === 'name'" :direction="$sortDirection" wire:click="sort('name')">
-                Category Name
+                نام دسته
             </flux:table.column>
-            <flux:table.column>Model</flux:table.column>
-            <flux:table.column>Quantities</flux:table.column>
-            <flux:table.column>Changes</flux:table.column>
+            <flux:table.column>مدل(نمونه دسته)</flux:table.column>
+            <flux:table.column>تعداد</flux:table.column>
+            <flux:table.column>عملیات</flux:table.column>
         </flux:table.columns>
 
         <flux:table.rows>
@@ -44,23 +44,30 @@
                     <flux:table.cell class="whitespace-nowrap font-medium">{{ $category->name }}</flux:table.cell>
 
                     <flux:table.cell class="whitespace-nowrap">
-                        <a class="inline-block rounded-lg bg-blue-600 px-3 py-1.5 text-xs text-white no-underline hover:bg-blue-700 transition"
-                           href="{{ \Illuminate\Support\Facades\URL::signedRoute('product', ['category' => $category]) }}">
-                            ADD Model
+                        <a
+                            class="inline-block rounded-lg !bg-blue-600 px-3 py-1.5 text-xs !text-white no-underline transition hover:!bg-blue-700"
+                            style="background-color: #2563eb !important; color: #ffffff !important;"
+                            href="{{ \Illuminate\Support\Facades\URL::signedRoute('product', ['category' => $category]) }}"
+                        >
+                            افزودن به مدل ها یا نمونه های این دسته
                         </a>
                     </flux:table.cell>
 
                     <flux:table.cell class="whitespace-nowrap">
-                        <a class="inline-block rounded-lg bg-blue-600 px-3 py-1.5 text-xs text-white no-underline hover:bg-blue-700 transition"
-                           href="{{ \Illuminate\Support\Facades\URL::signedRoute('batch', ['category' => $category]) }}">
-                            Add quantities
+                        <a
+                            class="inline-block rounded-lg !bg-blue-600 px-3 py-1.5 text-xs !text-white no-underline transition hover:!bg-blue-700"
+                            style="background-color: #2563eb !important; color: #ffffff !important;"
+                            href="{{ \Illuminate\Support\Facades\URL::signedRoute('batch', ['category' => $category]) }}"
+                        >
+                            افزودن به تعداد هر مدل یا نمونه این دسته
                         </a>
                     </flux:table.cell>
+
 
                     <flux:table.cell class="whitespace-nowrap">
                         <div class="flex space-x-2 space-x-reverse">
-                            <flux:button variant="primary" color="yellow" size="sm" wire:click="edit({{ $category->id }})">Edit</flux:button>
-                            <flux:button variant="primary" color="red" size="sm" wire:click="delete_form({{ $category->id }})">Delete</flux:button>
+                            <flux:button variant="primary" color="yellow" size="sm" wire:click="edit({{ $category->id }})">ویرایش</flux:button>
+                            <flux:button variant="primary" color="red" size="sm" wire:click="delete_form({{ $category->id }})">حذف</flux:button>
                         </div>
                     </flux:table.cell>
                 </flux:table.row>
@@ -72,8 +79,8 @@
     <flux:modal name="save" class="md:w-96" @close="reset_data">
         <div class="space-y-6">
             <div>
-                <flux:heading size="lg">New Category</flux:heading>
-                <flux:text class="mt-2">Add a new Category to your inventory.</flux:text>
+                <flux:heading size="lg">دسته بندی جدید</flux:heading>
+                <flux:text class="mt-2">افزودن دسته بندی جدید به انبار</flux:text>
             </div>
 
             @error('save_error')
@@ -81,13 +88,13 @@
             @enderror
 
             <div>
-                <flux:input wire:model="name" label="Name" placeholder="Category Name" autocomplete="off" />
+                <flux:input wire:model="name" label="نام دسته بندی" placeholder="نام دسته بندی" autocomplete="off" />
                 @error('name') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
             </div>
 
             <div class="flex">
                 <flux:spacer/>
-                <flux:button wire:click="save()" type="submit" variant="primary">Final Add</flux:button>
+                <flux:button wire:click="save()" type="submit" variant="primary">افزودن نهایی</flux:button>
             </div>
         </div>
     </flux:modal>
@@ -96,8 +103,8 @@
     <flux:modal name="edit-user" class="md:w-96" @close="reset_data">
         <div class="space-y-6">
             <div>
-                <flux:heading size="lg">Edit Category</flux:heading>
-                <flux:text class="mt-2">Update the category details.</flux:text>
+                <flux:heading size="lg">ویرایش دسته بندی</flux:heading>
+                <flux:text class="mt-2">برای ویرایش این دسته بندی اطلاعات زیر را کامل کنید</flux:text>
             </div>
 
             @error('update_error')
@@ -111,7 +118,7 @@
 
             <div class="flex">
                 <flux:spacer/>
-                <flux:button wire:click="update()" type="submit" variant="primary">Update</flux:button>
+                <flux:button wire:click="update()" type="submit" variant="primary">ثبت تغییرات</flux:button>
             </div>
         </div>
     </flux:modal>
@@ -120,14 +127,22 @@
     <flux:modal name="delete-user" class="md:w-96" @close="reset_data">
         <div class="space-y-6">
             <div>
-                <flux:heading size="lg">Delete Category</flux:heading>
-                <flux:text class="mt-2">Are you sure you want to delete Category "{{ $name }}"?</flux:text>
+                <flux:heading size="lg">حذف دسته بندی</flux:heading>
+                <flux:text class="mt-2">آیا از حذف "{{ $name }}" مطمئن هستید ؟</flux:text>
             </div>
 
             <div class="flex space-x-2 space-x-reverse justify-end">
-                <flux:button wire:click="reset_data" variant="ghost">Cancel</flux:button>
-                <flux:button wire:click="delete()" type="submit" color="red" variant="primary">Delete</flux:button>
+                <flux:button wire:click="reset_data" variant="ghost">لغو</flux:button>
+                <flux:button wire:click="delete()" type="submit" color="red" variant="primary">حذف نهایی</flux:button>
             </div>
         </div>
     </flux:modal>
+    <a
+        href="{{ URL::signedRoute('ProductHandel') }}"
+
+        class="inline-block rounded-lg !bg-blue-600 px-4 py-2 !text-white no-underline transition hover:!bg-blue-700"
+        style="background-color: #2563eb !important; color: #ffffff !important;"
+    >
+        برگشت
+    </a>
 </div>

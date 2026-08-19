@@ -12,30 +12,30 @@
     @endif
 
     <div>
-        <flux:button variant="primary" color="green" wire:click="openAddModal">Add new user</flux:button>
+        <flux:button variant="primary" color="green" wire:click="openAddModal">استخدام پرسنل جدید</flux:button>
     </div>
 
     <flux:table :paginate="$this->profiles">
         <flux:table.columns>
             <flux:table.column sortable :sorted="$sortBy === 'first_name'" :direction="$sortDirection" wire:click="sort('first_name')">
-                First Name
+                نام
             </flux:table.column>
             <flux:table.column sortable :sorted="$sortBy === 'last_name'" :direction="$sortDirection" wire:click="sort('last_name')">
-                Last Name
+               نام خانوادگی
             </flux:table.column>
             <flux:table.column sortable :sorted="$sortBy === 'phone'" :direction="$sortDirection" wire:click="sort('phone')">
-                Phone number
+                شماره تماس
             </flux:table.column>
             <flux:table.column sortable :sorted="$sortBy === 'national_code'" :direction="$sortDirection" wire:click="sort('national_code')">
-                N_Code
+                کد ملی
             </flux:table.column>
             <flux:table.column sortable :sorted="$sortBy === 'address'" :direction="$sortDirection" wire:click="sort('address')">
-                Address
+                آدرس
             </flux:table.column>
             <flux:table.column>
-                Role
+                پست
             </flux:table.column>
-            <flux:table.column>Actions</flux:table.column>
+            <flux:table.column>عملیات</flux:table.column>
         </flux:table.columns>
 
         <flux:table.rows>
@@ -56,8 +56,7 @@
 
                     <flux:table.cell class="whitespace-nowrap">
                         <div class="flex space-x-2 space-x-reverse">
-                            <flux:button variant="primary" color="yellow" wire:click="edit({{ $profile->id }})">Edit</flux:button>
-                            <flux:button variant="primary" color="red" wire:click="delete_form({{ $profile->id }})">Delete</flux:button>
+                            <flux:button variant="primary" color="red" wire:click="delete_form({{ $profile->id }})">اخراج</flux:button>
                         </div>
                     </flux:table.cell>
                 </flux:table.row>
@@ -69,8 +68,8 @@
     <flux:modal name="add-user" class="md:w-96" @close="reset_deta">
         <div class="space-y-6">
             <div>
-                <flux:heading size="lg">New user</flux:heading>
-                <flux:text class="mt-2">Hiring a new employee.</flux:text>
+                <flux:heading size="lg">استخدام پرسنل</flux:heading>
+                <flux:text class="mt-2">برای استخدام پرسنل جدید فرم های زیر را پر کنید</flux:text>
             </div>
 
             @error('save_error')
@@ -78,48 +77,48 @@
             @enderror
 
             <div>
-                <flux:input wire:model="user_name" label="User Name" placeholder="User name" autocomplete="off" />
+                <flux:input wire:model="user_name" label="نام کاربری" placeholder="نام کاربری" autocomplete="off" />
                 @error('user_name') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
             </div>
 
             <div>
-                <flux:input type="password" wire:model="password" label="Password" placeholder="Password" autocomplete="new-password" />
+                <flux:input type="password" wire:model="password" label="رمز عبور" placeholder="رمز عبور" autocomplete="new-password" />
                 @error('password') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
             </div>
 
             <div>
-                <flux:input type="password" wire:model="confirm_password" label="Confirm Password" placeholder="Confirm Password" autocomplete="new-password" />
+                <flux:input type="password" wire:model="confirm_password" label="تکرار رمز عبور" placeholder="تکرار رمز عبور" autocomplete="new-password" />
                 @error('confirm_password') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
             </div>
 
             <div>
-                <flux:input wire:model="f_name" label="First Name" placeholder="First name"  />
+                <flux:input wire:model="f_name" label="نام" placeholder="نام"  />
                 @error('f_name') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
             </div>
 
             <div>
-                <flux:input wire:model="l_name" label="Last Name" placeholder="Last name"  />
+                <flux:input wire:model="l_name" label="نام خانوادگی" placeholder="نام خانوادگی"  />
                 @error('l_name') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
             </div>
 
             <div>
-                <flux:input wire:model="phone" label="Phone" placeholder="Phone" />
+                <flux:input wire:model="phone" label="شماره تماس" placeholder="شماره تماس" />
                 @error('phone') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
             </div>
 
             <div>
-                <flux:input wire:model="national_code" label="National Code" placeholder="National code" />
+                <flux:input wire:model="national_code" label="کد ملی" placeholder="کد ملی" />
                 @error('national_code') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
             </div>
 
             <div>
-                <flux:input wire:model="address" label="Address" placeholder="Address"  />
+                <flux:input wire:model="address" label="آدرس" placeholder="آدرس"  />
                 @error('address') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
             </div>
 
             <div>
-                <flux:select wire:model="role_id" label="Role">
-                    <option value="">Choose a role...</option>
+                <flux:select wire:model="role_id" label="پست">
+                    <option value="">انتخاب نقش یا سمت</option>
                     @foreach ($this->roles as $role)
                         <flux:select.option value="{{ $role->id }}" wire:key="add-role-{{ $role->id }}">
                             {{ $role->name }}
@@ -131,94 +130,32 @@
 
             <div class="flex">
                 <flux:spacer/>
-                <flux:button wire:click="save()" type="submit" variant="primary">Final Recruitment</flux:button>
+                <flux:button wire:click="save()" type="submit" variant="primary"> برای استخدام نهایی کلیک کنید</flux:button>
             </div>
         </div>
     </flux:modal>
 
-    {{-- مودال ویرایش کاربر --}}
-    <flux:modal name="edit-user" class="md:w-96" @close="reset_deta">
-        <div class="space-y-6">
-            <div>
-                <flux:heading size="lg">Edit user</flux:heading>
-                <flux:text class="mt-2">Edit employee details.</flux:text>
-            </div>
-
-            @error('update_error')
-            <div class="text-xs text-red-600 font-bold bg-red-50 p-2 rounded">{{ $message }}</div>
-            @enderror
-
-            <div>
-                <flux:input wire:model="user_name" label="User Name" placeholder="User name" autocomplete="off" />
-                @error('user_name') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
-            </div>
-
-            <div>
-                <flux:input type="password" wire:model="password" label="New Password (optional)" placeholder="Leave blank to keep current" autocomplete="new-password" />
-                @error('password') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
-            </div>
-
-            <div>
-                <flux:input type="password" wire:model="confirm_password" label="Confirm New Password" placeholder="Confirm Password" autocomplete="new-password" />
-                @error('confirm_password') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
-            </div>
-
-            <div>
-                <flux:input wire:model="f_name" label="First Name" placeholder="First name"/>
-                @error('f_name') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
-            </div>
-
-            <div>
-                <flux:input wire:model="l_name" label="Last Name" placeholder="Last name" />
-                @error('l_name') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
-            </div>
-
-            <div>
-                <flux:input wire:model="phone" label="Phone" placeholder="Phone" />
-                @error('phone') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
-            </div>
-
-            <div>
-                <flux:input wire:model="national_code" label="National Code" placeholder="National code"/>
-                @error('national_code') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
-            </div>
-
-            <div>
-                <flux:input wire:model="address" label="Address" placeholder="Address" />
-                @error('address') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
-            </div>
-
-            <div>
-                <flux:select wire:model="role_id" label="Role">
-                    <option value="">Choose a role...</option>
-                    @foreach ($this->roles as $role)
-                        <flux:select.option value="{{ $role->id }}" wire:key="edit-role-{{ $role->id }}">
-                            {{ $role->name }}
-                        </flux:select.option>
-                    @endforeach
-                </flux:select>
-                @error('role_id') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
-            </div>
-
-            <div class="flex">
-                <flux:spacer/>
-                <flux:button wire:click="update()" type="submit" variant="primary">Update</flux:button>
-            </div>
-        </div>
-    </flux:modal>
 
     {{-- مودال حذف کاربر --}}
     <flux:modal name="delete-user" class="md:w-96" @close="reset_deta">
         <div class="space-y-6">
             <div>
-                <flux:heading size="lg">Delete user</flux:heading>
-                <flux:text class="mt-2">Are you sure you want to delete {{ $f_name.' '.$l_name }}?</flux:text>
+                <flux:heading size="lg">اخراج</flux:heading>
+                <flux:text class="mt-2">آیا از اخراج  {{ $f_name.' '.$l_name }} مطمئمن هستید؟</flux:text>
             </div>
 
             <div class="flex space-x-2 space-x-reverse justify-end">
-                <flux:button wire:click="reset_deta" variant="ghost">Cancel</flux:button>
-                <flux:button wire:click="delete()" type="submit" color="red" variant="primary">Delete</flux:button>
+                <flux:button wire:click="reset_deta" variant="ghost">لغو</flux:button>
+                <flux:button wire:click="delete()" type="submit" color="red" variant="primary">اخراج</flux:button>
             </div>
         </div>
     </flux:modal>
+        <a
+            href="{{ URL::signedRoute('PersonnelManagement_s_a') }}"
+
+            class="inline-block rounded-lg !bg-blue-600 px-4 py-2 !text-white no-underline transition hover:!bg-blue-700"
+            style="background-color: #2563eb !important; color: #ffffff !important;"
+        >
+            برگشت
+        </a>
 </div>

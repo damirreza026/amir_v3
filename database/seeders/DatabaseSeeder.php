@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Salary;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
@@ -24,6 +25,12 @@ class DatabaseSeeder extends Seeder
         $this->call(CustomersSeeder::class);
         $this->call(InvoicSeeder::class);
         $this->call(InvoiceItemSeeder::class);
+        $this->call([
+            YearSeeder::class,
+            MonthSeeder::class,
+            WeekSeeder::class,
+            SalarySeeder::class,
+        ]);
 
 
     }

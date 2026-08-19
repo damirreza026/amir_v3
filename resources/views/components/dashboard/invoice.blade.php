@@ -70,10 +70,10 @@
 </style>
 
 
-<a href="https://google.com" target="_blank" class="sale-card-link">
+<a href="https://google.com" target="_self" class="sale-card-link">
     <img src="{{ asset('img/dashboard/invoice.jpg') }}" alt="today sale" class="sale-card-img">
     <div class="sale-card-overlay">
-        <span class="sale-card-title">Invoices</span>
+        <span class="sale-card-title">فاکتور ها</span>
     </div>
     <div class="sale-card-mobile-text">
         today sale

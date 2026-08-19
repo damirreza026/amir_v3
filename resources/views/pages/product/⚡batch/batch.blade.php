@@ -8,7 +8,7 @@
             </h1>
 
             <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                مدیریت موجودی و بچ‌های محصولات
+                مدیریت موجودی و تعداد محصولات
             </p>
         </div>
 
@@ -621,9 +621,13 @@
 
         </div>
     </flux:modal>
-    <a href="{{ route('category') }}"
-       class="inline-block rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">
+    <a
+        href="{{ URL::signedRoute('category') }}"
+        class="inline-block rounded-lg !bg-blue-600 px-4 py-2 !text-white no-underline transition hover:!bg-blue-700"
+        style="background-color: #2563eb !important; color: #ffffff !important;"
+    >
         برگشت
     </a>
+
 
 </div>

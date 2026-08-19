@@ -34,7 +34,23 @@ new class extends Component
         return InvoiceItem::query()
             ->with(['productBatch.product'])
             ->where('invoice_id', $this->invoice->id)
-            ->when($this->sortBy, fn ($query) => $query->orderBy($this->sortBy, $this->sortDirection))
+            ->when(
+                $this->sortBy,
+                fn ($query) => $query->orderBy($this->sortBy, $this->sortDirection)
+            )
             ->paginate(15);
+    }
+
+    #[Computed]
+    public function allInvoiceItems()
+    {
+        return InvoiceItem::query()
+            ->with(['productBatch.product'])
+            ->where('invoice_id', $this->invoice->id)
+            ->when(
+                $this->sortBy,
+                fn ($query) => $query->orderBy($this->sortBy, $this->sortDirection)
+            )
+            ->get();
     }
 };

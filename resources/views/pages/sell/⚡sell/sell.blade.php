@@ -25,15 +25,15 @@
                         :direction="$sortDirection"
                         wire:click="sort('expiry_date')"
                     >
-                        Expiry date
+                        تاریخ انقضاء
                     </flux:table.column>
 
-                    <flux:table.column>Product name</flux:table.column>
-                    <flux:table.column>Registrar</flux:table.column>
-                    <flux:table.column>Sale price</flux:table.column>
-                    <flux:table.column>Production date</flux:table.column>
-                    <flux:table.column>Quantity</flux:table.column>
-                    <flux:table.column>Action</flux:table.column>
+                    <flux:table.column>نام محصول</flux:table.column>
+                    <flux:table.column>ثبت کننده</flux:table.column>
+                    <flux:table.column>قیمت فروش </flux:table.column>
+                    <flux:table.column> تاریخ تولید</flux:table.column>
+                    <flux:table.column>تعداد</flux:table.column>
+                    <flux:table.column>انتخاب برای فروش</flux:table.column>
                 </flux:table.columns>
 
                 <flux:table.rows>
@@ -69,7 +69,7 @@
                                     color="yellow"
                                     wire:click="edit({{ $productbatche }})"
                                 >
-                                    Sell
+                                    فروش
                                 </flux:button>
                             </flux:table.cell>
                         </flux:table.row>
@@ -234,4 +234,12 @@
             </div>
         </div>
     </flux:modal>
+        <a
+            href="{{ URL::signedRoute('sale_s_a') }}"
+
+            class="inline-block rounded-lg !bg-blue-600 px-4 py-2 !text-white no-underline transition hover:!bg-blue-700"
+            style="background-color: #2563eb !important; color: #ffffff !important;"
+        >
+            برگشت
+        </a>
 </div>

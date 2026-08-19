@@ -1,27 +1,29 @@
 <?php
 
-use App\Concerns\ProfileValidationRules;
-use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Flux\Flux;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Session;
-use Livewire\Attributes\Computed;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
-new #[Title('Profile settings')] class extends Component {
-    use ProfileValidationRules;
+new #[Title('تنظیمات پروفایل')] class extends Component {
+    public string $user_name = '';
 
-    public string $name = '';
-    public string $email = '';
+    public string $password = '';
+
+    public string $password_confirmation = '';
 
     /**
      * Mount the component.
      */
     public function mount(): void
     {
-        $this->name = Auth::user()->name;
-        $this->email = Auth::user()->email;
+        $this->user_name = Auth::user()->user_name;
+
+        // رمز عبور هرگز از قبل نمایش داده نمی‌شود (امنیت)
+        $this->password = '';
+        $this->password_confirmation = '';
     }
 
     /**
@@ -31,94 +33,63 @@ new #[Title('Profile settings')] class extends Component {
     {
         $user = Auth::user();
 
-        $validated = $this->validate($this->profileRules($user->id));
+        $validated = $this->validate([
+            'user_name'             => ['required', 'string', 'max:255', Rule::unique('users', 'user_name')->ignore($user->id)],
+            'password'              => ['nullable', 'string', 'min:8', 'confirmed'],
+            'password_confirmation' => ['nullable', 'string'],
+        ], [
+            'user_name.required' => 'نام کاربری الزامی است.',
+            'user_name.max'      => 'نام کاربری نمی‌تواند بیشتر از ۲۵۵ کاراکتر باشد.',
+            'user_name.unique'   => 'این نام کاربری قبلاً استفاده شده است.',
+            'password.min'       => 'رمز عبور باید حداقل ۸ کاراکتر باشد.',
+            'password.confirmed' => 'رمز عبور و تکرار آن مطابقت ندارند.',
+        ]);
 
-        $user->fill($validated);
+        $user->user_name = $validated['user_name'];
 
-        if ($user->isDirty('email')) {
-            $user->email_verified_at = null;
+        // فقط اگر رمز جدید وارد شده باشد، آن را هش و ذخیره کن
+        if (! empty($validated['password'])) {
+            $user->password = Hash::make($validated['password']);
         }
 
         $user->save();
 
-        Flux::toast(variant: 'success', text: __('Profile updated.'));
+        $this->password = '';
+        $this->password_confirmation = '';
+
+        Flux::toast(variant: 'success', text: 'پروفایل با موفقیت به‌روزرسانی شد.');
     }
-
-    /**
-     * Send an email verification notification to the current user.
-     */
-    public function resendVerificationNotification(): void
-    {
-        $user = Auth::user();
-
-        if ($user->hasVerifiedEmail()) {
-            $this->redirectIntended(default: route('dashboard', absolute: false));
-
-            return;
-        }
-
-        $user->sendEmailVerificationNotification();
-
-        Session::flash('status', 'verification-link-sent');
-    }
-
-    #[Computed]
-    public function hasUnverifiedEmail(): bool
-    {
-        return Auth::user() instanceof MustVerifyEmail && ! Auth::user()->hasVerifiedEmail();
-    }
-
-    #[Computed]
-    public function showDeleteUser(): bool
-    {
-        return ! Auth::user() instanceof MustVerifyEmail
-            || (Auth::user() instanceof MustVerifyEmail && Auth::user()->hasVerifiedEmail());
-    }
-}; ?>
+};
+?>
 
 <section class="w-full">
     @include('partials.settings-heading')
 
-    <flux:heading class="sr-only">{{ __('Profile settings') }}</flux:heading>
+    <flux:heading class="sr-only">{{ __('تنظیمات پروفایل') }}</flux:heading>
 
-    <x-pages::settings.layout :heading="__('Profile')" :subheading="__('Update your name and email address')">
+    <x-pages::settings.layout :heading="__('پروفایل')" :subheading="__('نام کاربری و رمز عبور خود را ویرایش کنید')">
         <form wire:submit="updateProfileInformation" class="my-6 w-full space-y-6">
-            <flux:input wire:model="name" :label="__('Name')" type="text" required autofocus autocomplete="name" />
+            <flux:input wire:model="user_name" :label="__('نام کاربری')" type="text" required autofocus autocomplete="username" />
 
             <div>
-                <flux:input wire:model="email" :label="__('Email')" type="email" required autocomplete="email" />
+                <flux:input wire:model="password" :label="__('رمز عبور جدید')" type="password" autocomplete="new-password" placeholder="برای تغییر رمز عبور، رمز جدید وارد کنید" />
 
-                @if ($this->hasUnverifiedEmail)
-                    <div>
-                        <flux:text class="mt-4">
-                            {{ __('Your email address is unverified.') }}
+                <flux:input wire:model="password_confirmation" :label="__('تکرار رمز عبور جدید')" type="password" autocomplete="new-password" placeholder="رمز عبور جدید را دوباره وارد کنید" />
 
-                            <flux:link class="text-sm cursor-pointer" wire:click.prevent="resendVerificationNotification">
-                                {{ __('Click here to re-send the verification email.') }}
-                            </flux:link>
-                        </flux:text>
-
-                        @if (session('status') === 'verification-link-sent')
-                            <flux:text class="mt-2 font-medium !dark:text-green-400 !text-green-600">
-                                {{ __('A new verification link has been sent to your email address.') }}
-                            </flux:text>
-                        @endif
-                    </div>
-                @endif
+                <flux:text class="mt-2">
+                    {{ __('برای تغییر رمز عبور، رمز جدید (حداقل ۸ کاراکتر) وارد کنید. اگر این فیلدها خالی بمانند، رمز فعلی حفظ می‌شود.') }}
+                </flux:text>
             </div>
 
             <div class="flex items-center gap-4">
                 <div class="flex items-center justify-end">
                     <flux:button variant="primary" type="submit" class="w-full" data-test="update-profile-button">
-                        {{ __('Save') }}
+                        {{ __('ذخیره تغییرات') }}
                     </flux:button>
                 </div>
-
             </div>
         </form>
 
-        @if ($this->showDeleteUser)
-            <livewire:pages::settings.delete-user-form />
-        @endif
+        <livewire:pages::settings.delete-user-form />
     </x-pages::settings.layout>
 </section>

@@ -73,10 +73,10 @@
 
 
 
-<a href="https://google.com" target="_blank" class="sale-card-link">
+<a href="https://google.com" target="_self" class="sale-card-link">
     <img src="{{ asset('img/dashboard/today_sale.jpg') }}" alt="today sale" class="sale-card-img">
     <div class="sale-card-overlay">
-        <span class="sale-card-title">today sale</span>
+        <span class="sale-card-title">فروش ها و آمار کلی</span>
     </div>
     <div class="sale-card-mobile-text">
         today sale

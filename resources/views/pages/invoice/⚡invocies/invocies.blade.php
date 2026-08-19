@@ -1,11 +1,5 @@
 <div dir="rtl" class="space-y-4">
-    <div class="flex justify-end">
-        <flux:modal.trigger name="save">
-            <flux:button wire:click="openSaveModal" variant="primary" color="green">
-                افزودن فاکتور جدید
-            </flux:button>
-        </flux:modal.trigger>
-    </div>
+
 
     @error('general')
     <div class="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700">
@@ -56,21 +50,23 @@
 
                     <flux:table.cell class="whitespace-nowrap">
                         <a
-                            class="inline-block rounded-lg bg-blue-600 px-3 py-1.5 text-white no-underline transition hover:bg-blue-700"
                             href="{{ \Illuminate\Support\Facades\URL::signedRoute('invoiceitems', ['invoice' => $invoice]) }}"
+                            class="inline-block rounded-lg !bg-blue-600 px-3 py-1.5 !text-white no-underline transition hover:!bg-blue-700"
+                            style="background-color: #2563eb !important; color: #ffffff !important;"
                         >
-                            details
+                            جزئیات
                         </a>
                     </flux:table.cell>
+
 
                     <flux:table.cell class="whitespace-nowrap">
                         <div class="flex gap-2">
                             <flux:button variant="primary" color="yellow" size="sm" wire:click="edit({{ $invoice->id }})">
-                                Edit
+                                ویرایش
                             </flux:button>
 
                             <flux:button variant="primary" color="red" size="sm" wire:click="del_form({{ $invoice->id }})">
-                                Delete
+                                حذف
                             </flux:button>
                         </div>
                     </flux:table.cell>
@@ -83,8 +79,8 @@
     <flux:modal name="save" class="md:w-7xl">
         <div class="space-y-6">
             <div>
-                <flux:heading size="lg">New invoice</flux:heading>
-                <flux:text class="mt-2">Add a new invoice and items.</flux:text>
+                <flux:heading size="lg">افزودن فاکتور</flux:heading>
+                <flux:text class="mt-2">برای افزودن فاکتور جدید اطلاعات زیر را کامل کنید</flux:text>
             </div>
 
             @error('general')
@@ -177,7 +173,7 @@
                         <div class="md:col-span-2">
                             <flux:input
                                 wire:model.live="items.{{ $index }}.price"
-                                label="قیمت واحد"
+                                label="قیمت واحد به تومان"
                                 readonly
                             />
                         </div>
@@ -208,7 +204,7 @@
                 <flux:spacer />
 
                 <flux:button wire:click="save" type="button" variant="primary">
-                    Final Add
+                   ثبت نهایی
                 </flux:button>
             </div>
         </div>
@@ -218,8 +214,8 @@
     <flux:modal name="edit" class="md:w-7xl">
         <div class="space-y-6">
             <div>
-                <flux:heading size="lg">Edit invoice</flux:heading>
-                <flux:text class="mt-2">Edit invoice and items.</flux:text>
+                <flux:heading size="lg">ویرایش فاکتور</flux:heading>
+                <flux:text class="mt-2">برای ویرایش فاکتور قسمت های مورد نیاز را تغییر دهید</flux:text>
             </div>
 
             @error('general')
@@ -343,7 +339,7 @@
                 <flux:spacer />
 
                 <flux:button wire:click="update" type="button" variant="primary">
-                    Update
+                    ثبت تغییرات
                 </flux:button>
             </div>
         </div>
@@ -353,8 +349,8 @@
     <flux:modal name="delete" class="md:w-96">
         <div class="space-y-6">
             <div>
-                <flux:heading size="lg">Delete invoice</flux:heading>
-                <flux:text class="mt-2">Are you sure you want to delete this invoice?</flux:text>
+                <flux:heading size="lg">حذف فاکتور</flux:heading>
+                <flux:text class="mt-2">آیا از حذف فاکتور مطمئن هستید؟!(فاکتور غیر قابل برگشت خواهد بود)</flux:text>
             </div>
 
             @error('general')
@@ -367,9 +363,24 @@
                 <flux:spacer />
 
                 <flux:button wire:click="delete" type="button" variant="primary" color="red">
-                    Delete
+                    حذف
                 </flux:button>
             </div>
         </div>
     </flux:modal>
+    <div class="flex justify-end">
+        <flux:modal.trigger name="save">
+            <flux:button wire:click="openSaveModal" variant="primary" color="green">
+                افزودن فاکتور جدید
+            </flux:button>
+        </flux:modal.trigger>
+        <a
+            href="{{ URL::signedRoute('invoice_s_a') }}"
+            class="inline-block rounded-lg !bg-blue-600 px-4 py-2 !text-white no-underline transition hover:!bg-blue-700"
+            style="background-color: #2563eb !important; color: #ffffff !important;"
+        >
+            برگشت
+        </a>
+    </div>
+
 </div>

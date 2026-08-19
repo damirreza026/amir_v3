@@ -70,10 +70,10 @@
 </style>
 
 
-<a href="https://google.com" target="_blank" class="sale-card-link">
+<a href="https://google.com" target="_self" class="sale-card-link">
     <img src="{{ asset('img/dashboard/inven-log.jpg') }}" alt="today sale" class="sale-card-img">
     <div class="sale-card-overlay">
-        <span class="sale-card-title">Inventory Logs</span>
+        <span class="sale-card-title">موجودی انبار</span>
     </div>
     <div class="sale-card-mobile-text">
         today sale

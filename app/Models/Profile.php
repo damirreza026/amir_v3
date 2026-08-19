@@ -18,6 +18,7 @@ class Profile extends Model
     {
         return $this->belongsToMany(Role::class);
     }
+
     protected $fillable = [
         'user_id',
         'first_name',
@@ -29,7 +30,6 @@ class Profile extends Model
 
     ];
 
-
     public function invoices(): HasMany
     {
         return $this->hasmeny(Invoice::class);
@@ -38,5 +38,13 @@ class Profile extends Model
     public function productbatchs(): HasMany
     {
         return $this->hasMany(ProductBatch::class);
+    }
+
+    public function salaries(): HasMany
+    {
+        return $this->hasMany(
+            Salary::class,
+            'profile_id'
+        );
     }
 }

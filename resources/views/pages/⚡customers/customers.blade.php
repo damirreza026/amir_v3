@@ -7,12 +7,12 @@
                 :direction="$sortDirection"
                 wire:click="sort('shop_name')"
             >
-                shop_name
+                نام مشتری
             </flux:table.column>
 
-            <flux:table.column>phone</flux:table.column>
-            <flux:table.column>address</flux:table.column>
-            <flux:table.column>actions</flux:table.column>
+            <flux:table.column>شماره تماس</flux:table.column>
+            <flux:table.column>آدرس</flux:table.column>
+            <flux:table.column>عملیات</flux:table.column>
         </flux:table.columns>
 
         <flux:table.rows>
@@ -28,7 +28,7 @@
                             color="yellow"
                             wire:click="edit({{ $customer->id }})"
                         >
-                            Edit
+                            ویرایش
                         </flux:button>
 
                         <flux:button
@@ -36,7 +36,7 @@
                             color="red"
                             wire:click="del_form({{ $customer->id }})"
                         >
-                            Delete
+                            حذف
                         </flux:button>
                     </flux:table.cell>
                 </flux:table.row>
@@ -48,18 +48,18 @@
     <flux:modal name="edit" class="md:w-96">
         <div class="space-y-6">
             <div>
-                <flux:heading size="lg">Edit shop</flux:heading>
-                <flux:text class="mt-2">Edit store.</flux:text>
+                <flux:heading size="lg">ویرایش مشتری</flux:heading>
+                <flux:text class="mt-2">برای ویرایش اطلاعات مشتری هر قسمتی را که می خواهید تغییر دهید</flux:text>
             </div>
 
             <div class="space-y-3">
-                <flux:input wire:model.defer="shop_name" label="shop_name" placeholder="Shop_Name"/>
+                <flux:input wire:model.defer="shop_name" label="نام مشتری" placeholder="نام مشتری"/>
                 @error('shop_name') <p class="text-xs text-red-600">{{ $message }}</p> @enderror
 
-                <flux:input wire:model.defer="phone" label="phone" placeholder="Phone"/>
+                <flux:input wire:model.defer="phone" label="شماره تماس" placeholder="شماره تماس"/>
                 @error('phone') <p class="text-xs text-red-600">{{ $message }}</p> @enderror
 
-                <flux:input wire:model.defer="address" label="address" placeholder="Address"/>
+                <flux:input wire:model.defer="address" label="آدرس" placeholder="آدرس"/>
                 @error('address') <p class="text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
 
@@ -68,11 +68,11 @@
             <div class="flex gap-2">
                 <flux:spacer/>
                 <flux:modal.close>
-                    <flux:button variant="ghost" wire:click="$refresh">Cancel</flux:button>
+                    <flux:button variant="ghost" wire:click="$refresh">لغو</flux:button>
                 </flux:modal.close>
 
                 <flux:button wire:click="update" type="button" variant="primary" wire:loading.attr="disabled">
-                    Update
+                    اعمال تغییرات
                 </flux:button>
             </div>
         </div>
@@ -82,8 +82,8 @@
     <flux:modal name="delete" class="md:w-96">
         <div class="space-y-6">
             <div>
-                <flux:heading size="lg">Delete shop</flux:heading>
-                <flux:text class="mt-2">Are you sure to delete: <b>{{ $shop_name }}</b> ?</flux:text>
+                <flux:heading size="lg">حذف مشتری</flux:heading>
+                <flux:text class="mt-2">آیا از حذف مشتری با نام  <b>{{ $shop_name }}</b> مطمئمن هستید ؟</flux:text>
             </div>
 
             @error('cust_id') <p class="text-xs text-red-600">{{ $message }}</p> @enderror
@@ -91,11 +91,11 @@
             <div class="flex gap-2">
                 <flux:spacer/>
                 <flux:modal.close>
-                    <flux:button variant="ghost">Cancel</flux:button>
+                    <flux:button variant="ghost">لغو</flux:button>
                 </flux:modal.close>
 
                 <flux:button wire:click="delete" type="button" variant="primary" color="red" wire:loading.attr="disabled">
-                    Delete
+                    حذف
                 </flux:button>
             </div>
         </div>
@@ -105,29 +105,29 @@
     <flux:modal name="save" class="md:w-96">
         <div class="space-y-6">
             <div>
-                <flux:heading size="lg">New shop</flux:heading>
-                <flux:text class="mt-2">Add a new store.</flux:text>
+                <flux:heading size="lg">افزودن مشتری</flux:heading>
+                <flux:text class="mt-2">برای افزودن مشتری جدید قسمت های پایین را کامل کنید</flux:text>
             </div>
 
             <div class="space-y-3">
-                <flux:input wire:model.defer="shop_name" label="shop_name" placeholder="Shop_Name"/>
+                <flux:input wire:model.defer="shop_name" label="نام مشتری" placeholder="نام مشتری"/>
                 @error('shop_name') <p class="text-xs text-red-600">{{ $message }}</p> @enderror
 
-                <flux:input wire:model.defer="phone" label="phone" placeholder="Phone"/>
+                <flux:input wire:model.defer="phone" label="شماره تماس" placeholder="شماره تماس"/>
                 @error('phone') <p class="text-xs text-red-600">{{ $message }}</p> @enderror
 
-                <flux:input wire:model.defer="address" label="address" placeholder="Address"/>
+                <flux:input wire:model.defer="address" label="آدرس" placeholder="آدرس"/>
                 @error('address') <p class="text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
 
             <div class="flex gap-2">
                 <flux:spacer/>
                 <flux:modal.close>
-                    <flux:button variant="ghost" wire:click="resetForm">Cancel</flux:button>
+                    <flux:button variant="ghost" wire:click="resetForm">لغو</flux:button>
                 </flux:modal.close>
 
                 <flux:button wire:click="save" type="button" variant="primary" color="green" wire:loading.attr="disabled">
-                    Final Add
+                    ثبت نهایی
                 </flux:button>
             </div>
         </div>
@@ -135,7 +135,15 @@
 
     <flux:modal.trigger name="save">
         <flux:button wire:click="openSaveModal" variant="primary" color="green">
-            Add new shop
+            افزودن مشتری جدید
         </flux:button>
     </flux:modal.trigger>
+    <a
+        href="{{ URL::signedRoute('customer_s_a') }}"
+
+        class="inline-block rounded-lg !bg-blue-600 px-4 py-2 !text-white no-underline transition hover:!bg-blue-700"
+        style="background-color: #2563eb !important; color: #ffffff !important;"
+    >
+        برگشت
+    </a>
 </div>

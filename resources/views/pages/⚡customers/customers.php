@@ -55,7 +55,7 @@ new class extends Component
     {
         return [
             'shop_name' => ['required', 'string', 'min:2', 'max:100'],
-            'phone' => ['nullable', 'string', 'max:30', 'regex:/^[0-9+\-\s()]{7,30}$/'],
+            'phone' => ['nullable', 'string', 'max:30', 'regex:/^\d{11}$/'],
             'address' => ['nullable', 'string', 'max:255'],
         ];
     }
@@ -67,7 +67,7 @@ new class extends Component
             'shop_name.min' => 'نام فروشگاه حداقل باید ۲ کاراکتر باشد.',
             'shop_name.max' => 'نام فروشگاه حداکثر ۱۰۰ کاراکتر باشد.',
 
-            'phone.regex' => 'فرمت شماره تلفن معتبر نیست.',
+            'phone.regex' => 'شماره تماس شما باید ۱۱ رقم باشد.',
             'phone.max' => 'شماره تلفن حداکثر ۳۰ کاراکتر باشد.',
 
             'address.max' => 'آدرس حداکثر ۲۵۵ کاراکتر باشد.',
