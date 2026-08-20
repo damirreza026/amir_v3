@@ -23,12 +23,23 @@ Route::middleware(['auth', 'verified'])->group(function () {
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::view('invoice_s_a', 'super_admin_dashboard.invoice_icon')->name('invoice_s_a');
 });
+
+
+
+
+
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::view('salary_s_a', 'super_admin_dashboard.salary_icon')->name('salary_s_a');
 });
+
+
+
+
+
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::view('my_salary', 'super_admin_dashboard.my_salary')->name('my_salary');
 });
+
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::view('year_s_a', 'super_admin_dashboard.year')->name('year_s_a');
 });
