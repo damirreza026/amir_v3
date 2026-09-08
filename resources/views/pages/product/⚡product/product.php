@@ -2,6 +2,7 @@
 
 use App\Models\Category;
 use App\Models\Product;
+use Flux\Flux;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
@@ -12,6 +13,9 @@ new class extends Component {
 
     public Category $category;
     public int $category_id;
+
+    // متغیر جست‌وجو
+    public string $search = '';
 
     // متغیرهای فرم
     public $name = '';
@@ -27,14 +31,23 @@ new class extends Component {
         $this->category_id = $category->id;
     }
 
+    public function updatedSearch()
+    {
+        $this->resetPage();
+    }
+
     public function sort($column)
     {
         if ($this->sortBy === $column) {
-            $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
+            $this->sortDirection = $this->sortDirection === 'asc'
+                ? 'desc'
+                : 'asc';
         } else {
             $this->sortBy = $column;
             $this->sortDirection = 'asc';
         }
+
+        $this->resetPage();
     }
 
     #[Computed]
@@ -42,7 +55,21 @@ new class extends Component {
     {
         return Product::query()
             ->where('category_id', $this->category->id)
-            ->tap(fn($query) => $this->sortBy ? $query->orderBy($this->sortBy, $this->sortDirection) : $query)
+            ->when($this->search !== '', function ($query) {
+                $query->where(
+                    'name',
+                    'like',
+                    '%' . trim($this->search) . '%'
+                );
+            })
+            ->tap(function ($query) {
+                if ($this->sortBy) {
+                    $query->orderBy(
+                        $this->sortBy,
+                        $this->sortDirection
+                    );
+                }
+            })
             ->paginate(15);
     }
 
@@ -69,9 +96,13 @@ new class extends Component {
                 'string',
                 'min:2',
                 'max:100',
-                \Illuminate\Validation\Rule::unique('products', 'name')->where(function ($query) {
-                    return $query->where('category_id', $this->category_id);
-                })
+                \Illuminate\Validation\Rule::unique('products', 'name')
+                    ->where(function ($query) {
+                        return $query->where(
+                            'category_id',
+                            $this->category_id
+                        );
+                    }),
             ],
         ], [
             'name.required' => 'وارد کردن نام محصول الزامی است.',
@@ -88,12 +119,18 @@ new class extends Component {
                 $product->save();
             });
 
-            session()->flash('success', 'محصول جدید با موفقیت ثبت شد.');
+            session()->flash(
+                'success',
+                'محصول جدید با موفقیت ثبت شد.'
+            );
+
             Flux::modal('save')->close();
             $this->reset_data();
-
         } catch (\Throwable $e) {
-            $this->addError('save_error', 'خطایی در ثبت اطلاعات رخ داد: ' . $e->getMessage());
+            $this->addError(
+                'save_error',
+                'خطایی در ثبت اطلاعات رخ داد: ' . $e->getMessage()
+            );
         }
     }
 
@@ -116,9 +153,14 @@ new class extends Component {
                 'string',
                 'min:2',
                 'max:100',
-                \Illuminate\Validation\Rule::unique('products', 'name')->ignore($this->pro_id)->where(function ($query) {
-                    return $query->where('category_id', $this->category_id);
-                })
+                \Illuminate\Validation\Rule::unique('products', 'name')
+                    ->ignore($this->pro_id)
+                    ->where(function ($query) {
+                        return $query->where(
+                            'category_id',
+                            $this->category_id
+                        );
+                    }),
             ],
         ], [
             'name.required' => 'وارد کردن نام محصول الزامی است.',
@@ -134,12 +176,18 @@ new class extends Component {
                 $product->save();
             });
 
-            session()->flash('success', 'محصول با موفقیت ویرایش شد.');
+            session()->flash(
+                'success',
+                'محصول با موفقیت ویرایش شد.'
+            );
+
             Flux::modal('edit-user')->close();
             $this->reset_data();
-
         } catch (\Throwable $e) {
-            $this->addError('update_error', 'خطایی در ویرایش اطلاعات رخ داد: ' . $e->getMessage());
+            $this->addError(
+                'update_error',
+                'خطایی در ویرایش اطلاعات رخ داد: ' . $e->getMessage()
+            );
         }
     }
 
@@ -161,12 +209,19 @@ new class extends Component {
                 $product->delete();
             });
 
-            session()->flash('success', 'محصول با موفقیت حذف شد.');
+            session()->flash(
+                'success',
+                'محصول با موفقیت حذف شد.'
+            );
+
             Flux::modal('delete-user')->close();
             $this->reset_data();
-
         } catch (\Throwable $e) {
-            session()->flash('error', 'خطا در حذف محصول: ' . $e->getMessage());
+            session()->flash(
+                'error',
+                'خطا در حذف محصول: ' . $e->getMessage()
+            );
+
             Flux::modal('delete-user')->close();
         }
     }

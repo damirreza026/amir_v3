@@ -6,6 +6,7 @@ use App\Models\Year;
 use Flux\Flux;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Livewire\Attributes\Computed;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -35,28 +36,32 @@ new class extends Component
     {
         $this->year = $year;
 
-        $firstMonth = Month::query()
-            ->where('payroll_year_id', $year->id)
-            ->orderBy('month')
-            ->first();
+        $monthIdFromRequest = request()->get('month');
 
-        if ($firstMonth) {
-            $this->selected_month_id = $firstMonth->id;
+        if ($monthIdFromRequest && Month::where('id', $monthIdFromRequest)->where('payroll_year_id', $year->id)->exists()) {
+            $this->selected_month_id = (int) $monthIdFromRequest;
+        } else {
+            $firstMonth = Month::query()
+                ->where('payroll_year_id', $year->id)
+                ->orderBy('month')
+                ->first();
+
+            if ($firstMonth) {
+                $this->selected_month_id = $firstMonth->id;
+            }
         }
     }
 
-    public function updatedSelectedMonthId(): void
+    #[Computed]
+    public function currentMonth()
     {
-        $this->resetPage();
-        $this->resetForm();
-    }
+        if (! $this->selected_month_id) {
+            return null;
+        }
 
-    public function getMonthsProperty()
-    {
-        return Month::query()
+        return Month::where('id', $this->selected_month_id)
             ->where('payroll_year_id', $this->year->id)
-            ->orderBy('month')
-            ->get();
+            ->first();
     }
 
     public function getWeeksProperty()
@@ -77,8 +82,6 @@ new class extends Component
     {
         $weekNumber = (int) $value;
 
-        // اگر کاربر خودش چیزی نوشته بود یا تازه انتخاب کرده، مقدار پیش‌فرض را ست می‌کنیم
-        // مگر اینکه بخواهیم کاربر بتواند دستی تغییر دهد
         if ($weekNumber && isset($this->weekNames[$weekNumber])) {
             $this->week_name = $this->weekNames[$weekNumber];
         }
@@ -129,7 +132,7 @@ new class extends Component
             ],
             'week_name' => ['required', 'string', 'max:255'],
         ], [
-            'selected_month_id.required' => 'لطفاً ماه را انتخاب کنید.',
+            'selected_month_id.required' => 'ماه معتبر یافت نشد.',
             'selected_month_id.exists' => 'ماه انتخاب‌شده معتبر نیست.',
             'week.required' => 'لطفاً هفته را انتخاب کنید.',
             'week.integer' => 'شماره هفته باید عدد باشد.',
@@ -210,7 +213,7 @@ new class extends Component
             ],
             'week_name' => ['required', 'string', 'max:255'],
         ], [
-            'selected_month_id.required' => 'لطفاً ماه را انتخاب کنید.',
+            'selected_month_id.required' => 'ماه معتبر یافت نشد.',
             'selected_month_id.exists' => 'ماه انتخاب‌شده معتبر نیست.',
             'week.required' => 'لطفاً هفته را انتخاب کنید.',
             'week.integer' => 'شماره هفته باید عدد باشد.',

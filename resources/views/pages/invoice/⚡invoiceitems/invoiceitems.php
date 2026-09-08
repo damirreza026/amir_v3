@@ -4,9 +4,12 @@ use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
+use Livewire\WithPagination;
 
 new class extends Component
 {
+    use WithPagination;
+
     public Invoice $invoice;
 
     public $sortBy = 'quantity';
@@ -47,10 +50,7 @@ new class extends Component
         return InvoiceItem::query()
             ->with(['productBatch.product'])
             ->where('invoice_id', $this->invoice->id)
-            ->when(
-                $this->sortBy,
-                fn ($query) => $query->orderBy($this->sortBy, $this->sortDirection)
-            )
+            ->orderBy('id', 'asc') // مرتب‌سازی ثابت برای چاپ
             ->get();
     }
 };

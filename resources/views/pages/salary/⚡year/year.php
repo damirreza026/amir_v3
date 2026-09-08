@@ -1,11 +1,10 @@
 <?php
 
-namespace App\Livewire;
+namespace App\Livewire\Salary;
 
+use App\Models\Month;
 use App\Models\Year;
-use Flux\Flux;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -15,12 +14,31 @@ new class extends Component
     use WithPagination;
 
     public $year = '';
-
     public $year_id = null;
+    public $search = '';
 
     public $sortBy = 'year';
-
     public $sortDirection = 'desc';
+
+    protected $persianMonths = [
+        ['number' => 1, 'name' => 'فروردین'],
+        ['number' => 2, 'name' => 'اردیبهشت'],
+        ['number' => 3, 'name' => 'خرداد'],
+        ['number' => 4, 'name' => 'تیر'],
+        ['number' => 5, 'name' => 'مرداد'],
+        ['number' => 6, 'name' => 'شهریور'],
+        ['number' => 7, 'name' => 'مهر'],
+        ['number' => 8, 'name' => 'آبان'],
+        ['number' => 9, 'name' => 'آذر'],
+        ['number' => 10, 'name' => 'دی'],
+        ['number' => 11, 'name' => 'بهمن'],
+        ['number' => 12, 'name' => 'اسفند'],
+    ];
+
+    public function updatedSearch()
+    {
+        $this->resetPage();
+    }
 
     public function sort($column)
     {
@@ -30,20 +48,8 @@ new class extends Component
             $this->sortBy = $column;
             $this->sortDirection = 'asc';
         }
-    }
 
-    #[Computed]
-    public function years()
-    {
-        return Year::query()
-            ->tap(fn ($query) => $this->sortBy ? $query->orderBy($this->sortBy, $this->sortDirection) : $query)
-            ->paginate(15);
-    }
-
-    public function openSaveModal()
-    {
-        $this->reset_data();
-        Flux::modal('save')->show();
+        $this->resetPage();
     }
 
     public function reset_data()
@@ -52,97 +58,89 @@ new class extends Component
         $this->resetValidation();
     }
 
+    public function openAddModal()
+    {
+        $this->reset_data();
+        \Flux\Flux::modal('add-year')->show();
+    }
+
+    #[Computed]
+    public function years()
+    {
+        $query = Year::query();
+
+        if (!empty(trim($this->search))) {
+            $query->where('year', 'like', '%' . trim($this->search) . '%');
+        }
+
+        return $query
+            ->orderBy($this->sortBy, $this->sortDirection)
+            ->paginate(10);
+    }
+
     public function save()
     {
         $this->validate([
             'year' => ['required', 'digits:4', 'unique:payroll_years,year'],
         ], [
             'year.required' => 'وارد کردن سال الزامی است.',
-            'year.digits' => 'نام سال باید حتما 4 رقم باشد.',
-            'year.unique' => 'این سال قبلاً ثبت شده است.',
+            'year.digits'   => 'سال باید یک عدد ۴ رقمی باشد (مثلاً ۱۴۰۳).',
+            'year.unique'   => 'این سال مالی قبلاً ثبت شده است.',
         ]);
 
         try {
             DB::transaction(function () {
-                $year = new Year;
-                $year->year = $this->year;
-                $year->save();
+                $yearRecord = Year::create([
+                    'year' => (int) $this->year,
+                ]);
+
+                $monthsData = [];
+                foreach ($this->persianMonths as $month) {
+                    $monthsData[] = [
+                        'payroll_year_id' => $yearRecord->id,
+                        'month'           => $month['number'],
+                        'month_name'      => $month['name'],
+                        'created_at'      => now(),
+                        'updated_at'      => now(),
+                    ];
+                }
+
+                Month::insert($monthsData);
             });
 
-            session()->flash('success', 'سال جدید با موفقیت ثبت شد.');
-            Flux::modal('save')->close();
+            session()->flash('success', 'سال مالی جدید همراه با ۱۲ ماه با موفقیت ایجاد شد.');
+            \Flux\Flux::modal('add-year')->close();
             $this->reset_data();
+
         } catch (\Throwable $e) {
-            $this->addError('save_error', 'خطایی در ثبت اطلاعات رخ داد: '.$e->getMessage());
-        }
-    }
-
-    public function edit(int $yearId)
-    {
-        $this->resetValidation();
-
-        $year = Year::findOrFail($yearId);
-
-        $this->year_id = $year->id;
-        $this->year = $year->year;
-
-        Flux::modal('edit-user')->show();
-    }
-
-    public function update()
-    {
-        $this->validate([
-            'year' => [
-                'required',
-                'digits:4',
-                Rule::unique('payroll_years', 'year')->ignore($this->year_id),
-            ],
-        ], [
-            'year.required' => 'وارد کردن سال الزامی است.',
-            'year.digits' => 'نام سال باید حتما 4 رقم باشد.',
-            'year.unique' => 'این سال قبلاً ثبت شده است.',
-        ]);
-
-        try {
-            DB::transaction(function () {
-                $year = Year::findOrFail($this->year_id);
-                $year->year = $this->year;
-                $year->save();
-            });
-
-            session()->flash('success', 'دسته‌بندی با موفقیت ویرایش شد.');
-            Flux::modal('edit-user')->close();
-            $this->reset_data();
-        } catch (\Throwable $e) {
-            $this->addError('update_error', 'خطایی در ویرایش اطلاعات رخ داد: '.$e->getMessage());
+            $this->addError('save_error', 'خطایی در ثبت سال رخ داد: ' . $e->getMessage());
         }
     }
 
     public function delete_form(int $yearId)
     {
-        $this->resetValidation();
+        $yearRecord = Year::findOrFail($yearId);
+        $this->year_id = $yearRecord->id;
+        $this->year = (string) $yearRecord->year;
 
-        $year = Year::findOrFail($yearId);
-        $this->year_id = $year->id;
-        $this->year = $year->year;
-
-        Flux::modal('delete-user')->show();
+        \Flux\Flux::modal('delete-year')->show();
     }
 
     public function delete()
     {
         try {
             DB::transaction(function () {
-                $year = Year::findOrFail($this->year_id);
-                $year->delete();
+                Month::where('payroll_year_id', $this->year_id)->delete();
+                Year::destroy($this->year_id);
             });
 
-            session()->flash('success', 'سال با موفقیت حذف شد.');
-            Flux::modal('delete-user')->close();
+            session()->flash('success', 'سال مالی و ماه‌های مرتبط با آن حذف گردید.');
+            \Flux\Flux::modal('delete-year')->close();
             $this->reset_data();
+
         } catch (\Throwable $e) {
-            session()->flash('error', 'خطا در حذف سال: '.$e->getMessage());
-            Flux::modal('delete-user')->close();
+            session()->flash('error', 'خطا در حذف سال مالی: ' . $e->getMessage());
+            \Flux\Flux::modal('delete-year')->close();
         }
     }
 };

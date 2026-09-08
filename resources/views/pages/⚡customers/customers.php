@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Customer;
+use Flux\Flux;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -11,18 +12,22 @@ new class extends Component
 
     public ?int $cust_id = null;
 
+    // متغیر جست‌وجو
+    public string $search = '';
+
+    // متغیرهای فرم
     public string $shop_name = '';
 
     public string $phone = '';
 
     public string $address = '';
 
+    // مرتب‌سازی
     public string $sortBy = 'shop_name';
 
     public string $sortDirection = 'asc';
 
-    // اگر وقتی تایپ می‌کنی paginate برگرده صفحه 1
-    public function updatingShopName()
+    public function updatedSearch(): void
     {
         $this->resetPage();
     }
@@ -40,17 +45,22 @@ new class extends Component
             $this->sortBy = $column;
             $this->sortDirection = 'asc';
         }
+
+        $this->resetPage();
     }
 
     #[Computed]
     public function customers()
     {
         return Customer::query()
+            ->when(filled($this->search), function ($query) {
+                $query->where('shop_name', 'like', '%' . trim($this->search) . '%');
+            })
             ->when($this->sortBy, fn ($q) => $q->orderBy($this->sortBy, $this->sortDirection))
             ->paginate(15);
     }
 
-    /** ولیدیشن */
+    /** قوانین اعتبارسنجی */
     protected function rules(): array
     {
         return [
@@ -74,8 +84,8 @@ new class extends Component
         ];
     }
 
-    /** ریست فرم + ارورها */
-    private function resetForm(): void
+    /** ریست فرم + خطاها */
+    public function resetForm(): void
     {
         $this->reset(['cust_id', 'shop_name', 'phone', 'address']);
         $this->resetValidation();
@@ -91,13 +101,17 @@ new class extends Component
     {
         $data = $this->validate();
 
-        Customer::create($data);
+        try {
+            Customer::create($data);
 
-        Flux::modal('save')->close();
-        $this->resetForm();
-
-        // اگر Toast/Notification داری اینجا بزن
-        // $this->dispatch('notify', type:'success', message:'فروشگاه با موفقیت ثبت شد.');
+            unset($this->customers);
+            session()->flash('success', 'مشتری جدید با موفقیت ثبت شد.');
+            Flux::modal('save')->close();
+            $this->resetForm();
+        } catch (\Throwable $e) {
+            report($e);
+            $this->addError('save_error', 'خطایی هنگام ثبت اطلاعات رخ داد. لطفاً دوباره تلاش کنید.');
+        }
     }
 
     public function edit(int $id): void
@@ -117,17 +131,23 @@ new class extends Component
     {
         if (! $this->cust_id) {
             $this->addError('cust_id', 'شناسه مشتری نامعتبر است.');
-
             return;
         }
 
         $data = $this->validate();
 
-        $customer = Customer::findOrFail($this->cust_id);
-        $customer->update($data);
+        try {
+            $customer = Customer::findOrFail($this->cust_id);
+            $customer->update($data);
 
-        Flux::modal('edit')->close();
-        $this->resetForm();
+            unset($this->customers);
+            session()->flash('success', 'اطلاعات مشتری با موفقیت ویرایش شد.');
+            Flux::modal('edit')->close();
+            $this->resetForm();
+        } catch (\Throwable $e) {
+            report($e);
+            $this->addError('update_error', 'خطایی هنگام ویرایش اطلاعات رخ داد. لطفاً دوباره تلاش کنید.');
+        }
     }
 
     public function del_form(int $id): void
@@ -145,13 +165,21 @@ new class extends Component
     {
         if (! $this->cust_id) {
             $this->addError('cust_id', 'شناسه مشتری نامعتبر است.');
-
             return;
         }
 
-        Customer::whereKey($this->cust_id)->delete();
+        try {
+            Customer::whereKey($this->cust_id)->delete();
 
-        Flux::modal('delete')->close();
-        $this->resetForm();
+            unset($this->customers);
+            session()->flash('success', 'مشتری با موفقیت حذف شد.');
+            Flux::modal('delete')->close();
+            $this->resetForm();
+        } catch (\Throwable $e) {
+            report($e);
+            session()->flash('error', 'خطایی هنگام حذف مشتری رخ داد. لطفاً دوباره تلاش کنید.');
+            Flux::modal('delete')->close();
+        }
     }
 };
+

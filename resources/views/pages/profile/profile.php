@@ -3,6 +3,7 @@
 use App\Models\Profile;
 use App\Models\Role;
 use App\Models\User;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Livewire\Attributes\Computed;
@@ -23,6 +24,10 @@ new class extends Component
     public $national_code = '';
     public $address = '';
 
+    // متغیرهای جستجو
+    public $search_national_code = '';
+    public $search_last_name = '';
+
     // شناسه نقش انتخابی
     public $role_id = '';
 
@@ -30,9 +35,22 @@ new class extends Component
     public $profile_id = null;
     public $user_id = null;
 
+    // آیا در حال ویرایش پروفایل خودِ کاربر لاگین‌شده هستیم؟
+    public bool $isEditingSelf = false;
+
     // متغیرهای مرتب‌سازی جدول
     public $sortBy = 'first_name';
     public $sortDirection = 'asc';
+
+    public function updatedSearchNationalCode(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedSearchLastName(): void
+    {
+        $this->resetPage();
+    }
 
     public function sort($column)
     {
@@ -42,14 +60,46 @@ new class extends Component
             $this->sortBy = $column;
             $this->sortDirection = 'asc';
         }
+
+        $this->resetPage();
+    }
+
+    public function currentUserRoleId(): int
+    {
+        return (int) (Auth::user()->profile->role_id ?? 0);
+    }
+
+    public function isSuperAdmin(): bool
+    {
+        return $this->currentUserRoleId() === 1;
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->currentUserRoleId() === 2;
     }
 
     #[Computed]
     public function profiles()
     {
-        // حذف roles از with برای جلوگیری از اجرای کوئری جدول واسط غیرموجود profile_role
-        return Profile::query()
-            ->with(['user'])
+        $query = Profile::query()->with(['user']);
+
+        // اگر کاربر ادمین است، نباید سوپرادمین‌ها (role_id = 1) را ببیند
+        if ($this->isAdmin()) {
+            $query->where('role_id', '!=', 1);
+        }
+
+        // جستجو بر اساس کد ملی
+        if (!empty(trim($this->search_national_code))) {
+            $query->where('national_code', 'like', '%' . trim($this->search_national_code) . '%');
+        }
+
+        // جستجو بر اساس نام خانوادگی
+        if (!empty(trim($this->search_last_name))) {
+            $query->where('last_name', 'like', '%' . trim($this->search_last_name) . '%');
+        }
+
+        return $query
             ->orderBy($this->sortBy, $this->sortDirection)
             ->paginate(10);
     }
@@ -57,23 +107,34 @@ new class extends Component
     #[Computed]
     public function roles()
     {
-        return Role::query()->orderBy('name')->get(['id', 'name']);
+        $query = Role::query()->orderBy('name');
+
+        if ($this->isSuperAdmin()) {
+            // سوپرادمین نمی‌تواند سوپرادمین جدید بسازد اما ادمین و بقیه را می‌تواند
+            $query->where('id', '!=', 1);
+        } elseif ($this->isAdmin()) {
+            // ادمین نه می‌تواند سوپرادمین تعریف کند و نه ادمین جدید
+            $query->whereNotIn('id', [1, 2]);
+        } else {
+            $query->whereNotIn('id', [1, 2]);
+        }
+
+        return $query->get(['id', 'name']);
     }
 
-    // متد باز کردن مودال ثبت کاربر جدید با فرم کاملاً پاک‌سازی شده
     public function openAddModal()
     {
         $this->reset_deta();
-        Flux::modal('add-user')->show();
+        \Flux\Flux::modal('add-user')->show();
     }
 
-    // متد پاک‌سازی اطلاعات فرم و خطاها
     public function reset_deta()
     {
         $this->reset([
             'user_name', 'password', 'confirm_password',
             'f_name', 'l_name', 'phone', 'national_code',
             'address', 'role_id', 'profile_id', 'user_id',
+            'isEditingSelf',
         ]);
         $this->resetValidation();
     }
@@ -84,16 +145,21 @@ new class extends Component
 
         $profile = Profile::with(['user'])->findOrFail($profileId);
 
+        // ادمین حق باز کردن یا ویرایش سوپرادمین را ندارد
+        if ($this->isAdmin() && (int) $profile->role_id === 1) {
+            session()->flash('error', 'شما دسترسی ویرایش سوپرادمین را ندارید.');
+            return;
+        }
+
         $this->profile_id = $profile->id;
         $this->user_id = $profile->user_id;
+        $this->isEditingSelf = ((int) $profile->user_id === (int) Auth::id());
 
         $this->f_name = $profile->first_name;
         $this->l_name = $profile->last_name;
         $this->phone = $profile->phone;
         $this->national_code = $profile->national_code;
         $this->address = $profile->address;
-
-        // دریافت مستقیم نقش ذخیره شده در ستون role_id پروفایل
         $this->role_id = $profile->role_id;
 
         $user = $profile->user;
@@ -104,12 +170,20 @@ new class extends Component
         $this->password = '';
         $this->confirm_password = '';
 
-        Flux::modal('edit-user')->show();
+        \Flux\Flux::modal('edit-user')->show();
     }
 
     public function update()
     {
-        $this->validate([
+        $profile = Profile::findOrFail($this->profile_id);
+
+        // جلوگیری از ویرایش سوپرادمین توسط ادمین
+        if ($this->isAdmin() && (int) $profile->role_id === 1) {
+            $this->addError('update_error', 'شما اجازه تغییر اطلاعات سوپرادمین را ندارید.');
+            return;
+        }
+
+        $rules = [
             'user_name' => ['required', 'string', 'min:4', 'unique:users,user_name,'.$this->user_id],
             'password' => ['nullable', 'string', 'min:6'],
             'confirm_password' => ['nullable', 'required_with:password', 'same:password'],
@@ -118,8 +192,21 @@ new class extends Component
             'phone' => ['required', 'regex:/^09[0-9]{9}$/'],
             'national_code' => ['required', 'digits:10', 'unique:profiles,national_code,'.$this->profile_id],
             'address' => ['required', 'string', 'max:500'],
-            'role_id' => ['required', 'exists:roles,id'],
-        ], [
+        ];
+
+        // اگر کاربر در حال ویرایش پروفایل خودش نیست، نقش باید اعتبارسنجی شود
+        $isSelf = ((int) $profile->user_id === (int) Auth::id());
+        if (! $isSelf) {
+            if ($this->isAdmin()) {
+                // ادمین فقط نقش‌های غیر از ۱ و ۲ را می‌تواند انتخاب کند
+                $rules['role_id'] = ['required', 'exists:roles,id', 'not_in:1,2'];
+            } else {
+                // سوپرادمین نقش غیر از ۱ را می‌تواند انتخاب کند
+                $rules['role_id'] = ['required', 'exists:roles,id', 'not_in:1'];
+            }
+        }
+
+        $this->validate($rules, [
             'user_name.required' => 'نام کاربری الزامی است.',
             'user_name.unique' => 'این نام کاربری قبلاً ثبت شده است.',
             'password.min' => 'رمز عبور جدید باید حداقل ۶ کاراکتر باشد.',
@@ -135,12 +222,12 @@ new class extends Component
             'address.required' => 'آدرس الزامی است.',
             'role_id.required' => 'انتخاب نقش الزامی است.',
             'role_id.exists' => 'نقش انتخاب شده معتبر نیست.',
+            'role_id.not_in' => 'شما مجاز به انتخاب این نقش نیستید.',
         ]);
 
         try {
-            DB::transaction(function () {
+            DB::transaction(function () use ($profile, $isSelf) {
                 $user = User::findOrFail($this->user_id);
-                $profile = Profile::findOrFail($this->profile_id);
 
                 $userData = [
                     'user_name' => $this->user_name,
@@ -152,18 +239,24 @@ new class extends Component
 
                 $user->update($userData);
 
-                $profile->update([
+                $profileData = [
                     'first_name' => $this->f_name,
                     'last_name' => $this->l_name,
                     'phone' => $this->phone,
                     'national_code' => $this->national_code,
                     'address' => $this->address,
-                    'role_id' => $this->role_id, // بروزرسانی فیلد نقش در پروفایل
-                ]);
+                ];
+
+                // هیچ کاربری (چه سوپرادمین، چه ادمین) نمی‌تواند نقش خودش را تغییر دهد
+                if (! $isSelf) {
+                    $profileData['role_id'] = $this->role_id;
+                }
+
+                $profile->update($profileData);
             });
 
             session()->flash('success', 'اطلاعات کاربر با موفقیت ویرایش شد.');
-            Flux::modal('edit-user')->close();
+            \Flux\Flux::modal('edit-user')->close();
             $this->reset_deta();
 
         } catch (\Throwable $e) {
@@ -175,17 +268,43 @@ new class extends Component
     {
         $profile = Profile::findOrFail($profileId);
 
+        // کسی نمی‌تواند خودش را حذف کند
+        if ((int) $profile->user_id === (int) Auth::id()) {
+            session()->flash('error', 'شما نمی‌توانید حساب کاربری خودتان را حذف کنید.');
+            return;
+        }
+
+        // ادمین نمی‌تواند سوپرادمین یا ادمین دیگر را حذف کند
+        if ($this->isAdmin() && in_array((int) $profile->role_id, [1, 2])) {
+            session()->flash('error', 'شما اجازه حذف این سطح کاربری را ندارید.');
+            return;
+        }
+
         $this->profile_id = $profile->id;
         $this->user_id = $profile->user_id;
         $this->f_name = $profile->first_name;
         $this->l_name = $profile->last_name;
 
-        Flux::modal('delete-user')->show();
+        \Flux\Flux::modal('delete-user')->show();
     }
 
     public function delete()
     {
         try {
+            $profile = Profile::findOrFail($this->profile_id);
+
+            if ((int) $profile->user_id === (int) Auth::id()) {
+                session()->flash('error', 'امکان حذف حساب کاربری خودتان وجود ندارد.');
+                \Flux\Flux::modal('delete-user')->close();
+                return;
+            }
+
+            if ($this->isAdmin() && in_array((int) $profile->role_id, [1, 2])) {
+                session()->flash('error', 'شما اجازه حذف این کاربر را ندارید.');
+                \Flux\Flux::modal('delete-user')->close();
+                return;
+            }
+
             DB::transaction(function () {
                 $user = User::find($this->user_id);
                 if ($user) {
@@ -196,12 +315,12 @@ new class extends Component
             });
 
             session()->flash('success', 'کاربر با موفقیت از سیستم حذف گردید.');
-            Flux::modal('delete-user')->close();
+            \Flux\Flux::modal('delete-user')->close();
             $this->reset_deta();
 
         } catch (\Throwable $e) {
             session()->flash('error', 'خطا در حذف کاربر: '.$e->getMessage());
-            Flux::modal('delete-user')->close();
+            \Flux\Flux::modal('delete-user')->close();
         }
     }
 };

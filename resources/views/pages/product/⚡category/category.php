@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Category;
+use Flux\Flux;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
@@ -11,16 +12,23 @@ new class extends Component
     use WithPagination;
 
     // متغیرهای فرم
-    public $name = '';
+    public string $name = '';
+    public ?int $cat_id = null;
 
-    public $cat_id = null;
+    // متغیر جست‌وجوی زنده
+    public string $search = '';
 
     // متغیرهای مرتب‌سازی جدول
-    public $sortBy = 'name';
+    public string $sortBy = 'name';
+    public string $sortDirection = 'asc';
 
-    public $sortDirection = 'desc';
+    // ریست صفحه‌بندی هنگام تغییر عبارت جست‌وجو
+    public function updatedSearch(): void
+    {
+        $this->resetPage();
+    }
 
-    public function sort($column)
+    public function sort(string $column): void
     {
         if ($this->sortBy === $column) {
             $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
@@ -28,36 +36,43 @@ new class extends Component
             $this->sortBy = $column;
             $this->sortDirection = 'asc';
         }
+
+        $this->resetPage();
     }
 
     #[Computed]
     public function categories()
     {
         return Category::query()
+            ->when(filled(trim($this->search)), function ($query) {
+                $query->where('name', 'like', '%' . trim($this->search) . '%');
+            })
             ->tap(fn ($query) => $this->sortBy ? $query->orderBy($this->sortBy, $this->sortDirection) : $query)
             ->paginate(15);
     }
 
     // متد باز کردن مودال ثبت دسته‌بندی جدید
-    public function openSaveModal()
+    public function openSaveModal(): void
     {
         $this->reset_data();
-        Flux::modal('save')->show();
+        Flux::modal('save-category')->show();
     }
 
     // پاک‌سازی فرم و خطاها
-    public function reset_data()
+    public function reset_data(): void
     {
         $this->reset(['name', 'cat_id']);
         $this->resetValidation();
     }
 
-    public function save()
+    // ثبت دسته‌بندی جدید
+    public function save(): void
     {
         $this->validate([
             'name' => ['required', 'string', 'min:2', 'max:100', 'unique:categories,name'],
         ], [
             'name.required' => 'وارد کردن نام دسته‌بندی الزامی است.',
+            'name.string' => 'نام دسته‌بندی باید متنی باشد.',
             'name.min' => 'نام دسته‌بندی باید حداقل ۲ کاراکتر باشد.',
             'name.max' => 'نام دسته‌بندی نباید بیشتر از ۱۰۰ کاراکتر باشد.',
             'name.unique' => 'این نام دسته‌بندی قبلاً ثبت شده است.',
@@ -65,39 +80,40 @@ new class extends Component
 
         try {
             DB::transaction(function () {
-                // بدون استفاده از create برای جلوگیری از خطای fillable
-                $category = new Category;
-                $category->name = $this->name;
-                $category->save();
+                Category::create([
+                    'name' => trim($this->name),
+                ]);
             });
 
             session()->flash('success', 'دسته‌بندی جدید با موفقیت ثبت شد.');
-            Flux::modal('save')->close();
+            Flux::modal('save-category')->close();
             $this->reset_data();
 
-        } catch (Throwable $e) {
-            $this->addError('save_error', 'خطایی در ثبت اطلاعات رخ داد: '.$e->getMessage());
+        } catch (\Throwable $e) {
+            $this->addError('save_error', 'خطایی در ثبت اطلاعات رخ داد: ' . $e->getMessage());
         }
     }
 
-    public function edit(int $categoryId)
+    // باز کردن مودال ویرایش
+    public function edit(int $categoryId): void
     {
-        $this->resetValidation();
+        $this->reset_data();
 
         $category = Category::findOrFail($categoryId);
-
         $this->cat_id = $category->id;
         $this->name = $category->name;
 
-        Flux::modal('edit-user')->show();
+        Flux::modal('edit-category')->show();
     }
 
-    public function update()
+    // ذخیره تغییرات ویرایش
+    public function update(): void
     {
         $this->validate([
             'name' => ['required', 'string', 'min:2', 'max:100', 'unique:categories,name,' . $this->cat_id],
         ], [
             'name.required' => 'وارد کردن نام دسته‌بندی الزامی است.',
+            'name.string' => 'نام دسته‌بندی باید متنی باشد.',
             'name.min' => 'نام دسته‌بندی باید حداقل ۲ کاراکتر باشد.',
             'name.max' => 'نام دسته‌بندی نباید بیشتر از ۱۰۰ کاراکتر باشد.',
             'name.unique' => 'این نام دسته‌بندی قبلاً ثبت شده است.',
@@ -105,14 +121,13 @@ new class extends Component
 
         try {
             DB::transaction(function () {
-                // بدون استفاده از update برای جلوگیری از خطای fillable
                 $category = Category::findOrFail($this->cat_id);
-                $category->name = $this->name;
+                $category->name = trim($this->name);
                 $category->save();
             });
 
             session()->flash('success', 'دسته‌بندی با موفقیت ویرایش شد.');
-            Flux::modal('edit-user')->close();
+            Flux::modal('edit-category')->close();
             $this->reset_data();
 
         } catch (\Throwable $e) {
@@ -120,7 +135,8 @@ new class extends Component
         }
     }
 
-    public function delete_form(int $categoryId)
+    // باز کردن مودال حذف
+    public function delete_form(int $categoryId): void
     {
         $this->reset_data();
 
@@ -128,10 +144,11 @@ new class extends Component
         $this->cat_id = $category->id;
         $this->name = $category->name;
 
-        Flux::modal('delete-user')->show();
+        Flux::modal('delete-category')->show();
     }
 
-    public function delete()
+    // عملیات حذف
+    public function delete(): void
     {
         try {
             DB::transaction(function () {
@@ -140,12 +157,12 @@ new class extends Component
             });
 
             session()->flash('success', 'دسته‌بندی با موفقیت حذف شد.');
-            Flux::modal('delete-user')->close();
+            Flux::modal('delete-category')->close();
             $this->reset_data();
 
-        } catch (Throwable $e) {
-            session()->flash('error', 'خطا در حذف دسته‌بندی: '.$e->getMessage());
-            Flux::modal('delete-user')->close();
+        } catch (\Throwable $e) {
+            session()->flash('error', 'خطا در حذف دسته‌بندی: ' . $e->getMessage());
+            Flux::modal('delete-category')->close();
         }
     }
 };

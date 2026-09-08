@@ -24,7 +24,7 @@
 
     <hr class="border-zinc-200 dark:border-zinc-700">
 
-    {{-- پیام موفقیت --}}
+    {{-- پیام‌های موفقیت و خطا --}}
     @if (session()->has('success'))
         <div
             class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700
@@ -34,7 +34,6 @@
         </div>
     @endif
 
-    {{-- پیام خطا --}}
     @if (session()->has('error'))
         <div
             class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700
@@ -44,7 +43,28 @@
         </div>
     @endif
 
-    {{-- جدول موجودی‌ها --}}
+    {{-- دو فیلد مجزای جست‌وجوی زنده --}}
+    <div class="flex flex-wrap items-center gap-4">
+        <div class="w-full sm:w-64">
+            <flux:input
+                wire:model.live.debounce.300ms="search_product"
+                placeholder="جست‌وجوی محصول..."
+                autocomplete="off"
+                clearable
+            />
+        </div>
+
+        <div class="w-full sm:w-64">
+            <flux:input
+                wire:model.live.debounce.300ms="search_employee"
+                placeholder="جست‌وجوی کارمند..."
+                autocomplete="off"
+                clearable
+            />
+        </div>
+    </div>
+
+    {{-- جدول اطلاعات موجودی‌ها --}}
     <flux:table :paginate="$this->productbatchs">
 
         <flux:table.columns>
@@ -170,7 +190,7 @@
                         colspan="8"
                         class="py-8 text-center text-zinc-500 dark:text-zinc-400"
                     >
-                        هنوز هیچ موجودی برای این دسته‌بندی ثبت نشده است.
+                        موردی یافت نشد.
                     </flux:table.cell>
                 </flux:table.row>
             @endforelse
@@ -204,7 +224,7 @@
             @error('save_error')
             <div
                 class="rounded-md border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-600
-                           dark:border-red-800 dark:bg-red-950/40 dark:text-red-300"
+                       dark:border-red-800 dark:bg-red-950/40 dark:text-red-300"
             >
                 {{ $message }}
             </div>
@@ -333,7 +353,7 @@
                 @enderror
             </div>
 
-            {{-- دکمه‌های مودال --}}
+            {{-- دکمه‌های مودال ثبت --}}
             <div class="flex items-center gap-2">
                 <flux:spacer />
 
@@ -393,7 +413,7 @@
             @error('update_error')
             <div
                 class="rounded-md border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-600
-                           dark:border-red-800 dark:bg-red-950/40 dark:text-red-300"
+                       dark:border-red-800 dark:bg-red-950/40 dark:text-red-300"
             >
                 {{ $message }}
             </div>
@@ -503,7 +523,7 @@
                 @enderror
             </div>
 
-            {{-- تعداد --}}
+            {{-- تعداد در ویرایش --}}
             <div>
                 <flux:input
                     wire:model="quantity"
@@ -522,7 +542,7 @@
                 @enderror
             </div>
 
-            {{-- دکمه‌های مودال --}}
+            {{-- دکمه‌های مودال ویرایش --}}
             <div class="flex items-center gap-2">
                 <flux:spacer />
 
@@ -558,12 +578,12 @@
 
 
     {{-- ====================================================== --}}
-    {{-- مودال حذف موجودی --}}
+    {{-- مودال تایید حذف --}}
     {{-- ====================================================== --}}
 
     <flux:modal
         name="delete-user"
-        class="md:w-96"
+        class="min-w-[22rem]"
     >
         <div class="space-y-6">
 
@@ -573,13 +593,11 @@
                 </flux:heading>
 
                 <flux:text class="mt-2">
-                    آیا از حذف موجودی محصول
-
-                    <strong class="font-bold text-zinc-900 dark:text-zinc-100">
+                    آیا از حذف این ردیف موجودی مربوط به
+                    <strong class="font-semibold text-zinc-900 dark:text-zinc-100">
                         {{ $product_name }}
                     </strong>
-
-                    مطمئن هستید؟
+                    اطمینان دارید؟
                 </flux:text>
             </div>
 
@@ -587,7 +605,7 @@
                 class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700
                        dark:border-red-800 dark:bg-red-950/40 dark:text-red-300"
             >
-                این عملیات قابل بازگشت نیست.
+                این عملیات غیرقابل بازگشت است.
             </div>
 
             <div class="flex items-center justify-end gap-2">
@@ -621,13 +639,17 @@
 
         </div>
     </flux:modal>
-    <a
-        href="{{ URL::signedRoute('category') }}"
-        class="inline-block rounded-lg !bg-blue-600 px-4 py-2 !text-white no-underline transition hover:!bg-blue-700"
-        style="background-color: #2563eb !important; color: #ffffff !important;"
-    >
-        برگشت
-    </a>
 
+
+    {{-- دکمه بازگشت --}}
+    <div>
+        <a
+            href="{{ URL::signedRoute('category') }}"
+            class="inline-block rounded-lg !bg-blue-600 px-4 py-2 !text-white no-underline transition hover:!bg-blue-700"
+            style="background-color: #2563eb !important; color: #ffffff !important;"
+        >
+            برگشت
+        </a>
+    </div>
 
 </div>

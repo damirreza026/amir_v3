@@ -26,6 +26,14 @@
             {{ session('error') }}
         </div>
     @endif
+    <div class="max-w-xs">
+        <flux:input
+            wire:model.live.debounce.300ms="search"
+            placeholder="جست‌وجو بر اساس نام محصول..."
+            autocomplete="off"
+            clearable
+        />
+    </div>
 
     {{-- جدول لیست محصولات --}}
     <flux:table :paginate="$this->products">

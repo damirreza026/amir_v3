@@ -1,44 +1,71 @@
 <?php
 
-use App\Models\ProductBatch;
+use App\Models\Customer;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
-use App\Models\Customer;
-use Illuminate\Support\Facades\DB;
+use App\Models\ProductBatch;
+use Flux\Flux;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
+use Livewire\WithPagination;
 
-new class extends Component {
-    public $prod_name = '';
-    public $pro_id = '';
-    public $sale_p = '';
-    public $pro_date = '';
-    public $ex_date = '';
+new class extends Component
+{
+    use WithPagination;
 
-    // تعداد انتخابی کاربر برای فروش در مودال
-    public $quan = 1;
+    // جست‌وجوی محصول
+    public string $search = '';
 
-    // نگهداری کل موجودی بچ انتخاب شده
-    public $available_qty = 0;
+    // متغیرهای بچ در حال انتخاب در مودال
+    public string $prod_name = '';
+
+    public string|int $pro_id = '';
+
+    public string|float $sale_p = '';
+
+    public string $pro_date = '';
+
+    public string $ex_date = '';
+
+    // تعداد انتخابی برای افزودن به سبد
+    public int $quan = 1;
+
+    // موجودی بچ انتخاب شده
+    public int $available_qty = 0;
 
     // سبد خرید موقت
     public array $cart = [];
 
-    // شناسه مغازه / مشتری انتخاب‌شده برای فاکتور
-    public $customer_id = '';
+    // شناسه مغازه / مشتری انتخاب‌شده
+    public string $customer_id = '';
 
-    public $sortBy = 'expiry_date';
-    public $sortDirection = 'desc';
+    // مرتب‌سازی
+    public string $sortBy = 'expiry_date';
 
-    public function sort($column)
+    public string $sortDirection = 'desc';
+
+    public function updatedSearch(): void
     {
+        $this->resetPage();
+    }
+
+    public function sort(string $column): void
+    {
+        $allowed = ['expiry_date', 'production_date', 'sale_price', 'quantity', 'id'];
+        if (! in_array($column, $allowed, true)) {
+            return;
+        }
+
         if ($this->sortBy === $column) {
             $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
         } else {
             $this->sortBy = $column;
             $this->sortDirection = 'asc';
         }
+
+        $this->resetPage();
     }
 
     #[Computed]
@@ -47,17 +74,23 @@ new class extends Component {
         return ProductBatch::query()
             ->with(['product', 'profile'])
             ->where('quantity', '>', 0)
-            ->orderBy($this->sortBy, $this->sortDirection)
+            ->when(filled($this->search), function ($query) {
+                $term = '%' . trim($this->search) . '%';
+                $query->whereHas('product', function ($q) use ($term) {
+                    $q->where('name', 'like', $term);
+                });
+            })
+            ->when($this->sortBy, fn ($q) => $q->orderBy($this->sortBy, $this->sortDirection))
             ->paginate(15);
     }
 
-    // دریافت لیست مغازه‌ها برای انتخاب در زمان فروش
+    // دریافت لیست مغازه‌ها
     #[Computed]
     public function customers()
     {
         return Customer::query()
             ->orderBy('shop_name')
-            ->get(['id', 'shop_name']);
+            ->get(['id', 'shop_name', 'phone']);
     }
 
     #[Computed]
@@ -66,29 +99,37 @@ new class extends Component {
         return (float) collect($this->cart)->sum('total');
     }
 
-    public function edit(ProductBatch $productbatche)
+    #[Computed]
+    public function cartCount(): int
     {
+        return (int) collect($this->cart)->sum('qty');
+    }
+
+    public function edit(int $batchId): void
+    {
+        $productBatch = ProductBatch::with('product')->findOrFail($batchId);
+
         $this->resetValidation();
 
-        $this->prod_name = $productbatche->product->name;
-        $this->sale_p = (float) $productbatche->sale_price;
-        $this->pro_date = $productbatche->production_date;
-        $this->ex_date = $productbatche->expiry_date;
+        $this->prod_name = (string) ($productBatch->product->name ?? '-');
+        $this->sale_p = (float) $productBatch->sale_price;
+        $this->pro_date = (string) ($productBatch->production_date ?? '-');
+        $this->ex_date = (string) ($productBatch->expiry_date ?? '-');
 
-        $this->available_qty = (int) $productbatche->quantity;
+        $this->available_qty = (int) $productBatch->quantity;
         $this->quan = 1;
-        $this->pro_id = $productbatche->id;
+        $this->pro_id = $productBatch->id;
 
         Flux::modal('edit-user')->show();
     }
 
-    public function update()
+    public function update(): void
     {
         $this->validate([
             'quan' => ['required', 'integer', 'min:1'],
         ], [
             'quan.required' => 'تعداد فروش الزامی است.',
-            'quan.integer' => 'تعداد باید عدد باشد.',
+            'quan.integer' => 'تعداد باید عددی معتبر باشد.',
             'quan.min' => 'تعداد باید حداقل ۱ باشد.',
         ]);
 
@@ -97,79 +138,65 @@ new class extends Component {
         if ($requestedQty > $this->available_qty) {
             $this->addError(
                 'quan',
-                "تعداد درخواستی از موجودی بیشتر است (موجودی: {$this->available_qty})"
+                "تعداد درخواستی از موجودی این بچ بیشتر است (موجودی: {$this->available_qty})"
             );
 
             return;
         }
 
-        // آیا این بچ قبلاً داخل سبد وجود دارد؟
+        // بررسی آیتم در سبد
         $existingIndex = collect($this->cart)->search(
             fn (array $item) => (int) $item['batch_id'] === (int) $this->pro_id
         );
 
-        // تعداد فعلی همان بچ در سبد
         $currentInCart = $existingIndex !== false
             ? (int) $this->cart[$existingIndex]['qty']
             : 0;
 
-        // موجودی کل بچ نباید از تعداد موجودی بیشتر شود
         if (($currentInCart + $requestedQty) > $this->available_qty) {
             $this->addError(
                 'quan',
-                'مجموع تعداد در سبد خرید نمی‌تواند از موجودی بچ بیشتر باشد.'
+                "مجموع تعداد در سبد خرید نمی‌تواند از موجودی انبار ({$this->available_qty}) بیشتر باشد."
             );
 
             return;
         }
 
-        // اگر بچ در سبد وجود داشت، تعداد آن را زیاد می‌کنیم
         if ($existingIndex !== false) {
             $newQty = $currentInCart + $requestedQty;
-
             $this->cart[$existingIndex]['qty'] = $newQty;
-            $this->cart[$existingIndex]['total'] = $newQty * $this->sale_p;
+            $this->cart[$existingIndex]['total'] = $newQty * (float) $this->sale_p;
         } else {
-            // اگر وجود نداشت، به سبد اضافه می‌کنیم
             $this->cart[] = [
                 'batch_id' => (int) $this->pro_id,
                 'product_name' => $this->prod_name,
-                'price' => $this->sale_p,
+                'price' => (float) $this->sale_p,
                 'qty' => $requestedQty,
-                'total' => $requestedQty * $this->sale_p,
+                'total' => $requestedQty * (float) $this->sale_p,
             ];
         }
 
         Flux::modal('edit-user')->close();
 
-        // ریست اطلاعات فرم مودال
-        $this->prod_name = '';
-        $this->sale_p = '';
-        $this->pro_date = '';
-        $this->ex_date = '';
-        $this->quan = 1;
-        $this->available_qty = 0;
-        $this->pro_id = '';
+        // ریست مقادیر موقت فرم مودال
+        $this->reset(['prod_name', 'sale_p', 'pro_date', 'ex_date', 'quan', 'available_qty', 'pro_id']);
     }
 
-    public function removeFromCart(int $index)
+    public function removeFromCart(int $index): void
     {
         if (isset($this->cart[$index])) {
             unset($this->cart[$index]);
-
-            // شماره indexهای آرایه را مرتب می‌کند
             $this->cart = array_values($this->cart);
         }
     }
 
-    public function clearCart()
+    public function clearCart(): void
     {
         $this->cart = [];
     }
 
-    public function checkout()
+    public function checkout(): void
     {
-        // پاک کردن خطای قبلی checkout
         $this->resetValidation('checkout_error');
 
         if (empty($this->cart)) {
@@ -178,25 +205,22 @@ new class extends Component {
             return;
         }
 
-        // بررسی انتخاب مشتری / مغازه
         $this->validate([
             'customer_id' => ['required', 'exists:customers,id'],
         ], [
-            'customer_id.required' => 'لطفاً مغازه یا مشتری را انتخاب کنید.',
-            'customer_id.exists' => 'مغازه انتخاب‌شده معتبر نیست.',
+            'customer_id.required' => 'لطفاً نام مغازه / مشتری را انتخاب کنید.',
+            'customer_id.exists' => 'مشتری انتخاب‌شده در سیستم معتبر نیست.',
         ]);
 
-        // مشتری انتخاب‌شده از dropdown
         $customer = Customer::findOrFail($this->customer_id);
 
-        // دریافت شناسه پروفایل کاربر واردشده
         $profileId = Auth::user()?->profile?->id
             ?? \App\Models\Profile::first()?->id
             ?? 1;
 
         try {
             DB::transaction(function () use ($customer, $profileId) {
-                // ایجاد فاکتور
+                // ثبت فاکتور
                 $invoice = new Invoice();
                 $invoice->customer_id = $customer->id;
                 $invoice->profile_id = $profileId;
@@ -204,22 +228,19 @@ new class extends Component {
                 $invoice->invoice_date = now()->format('Y-m-d');
                 $invoice->save();
 
-                // ثبت آیتم‌های فاکتور و کم کردن موجودی
+                // ثبت آیتم‌ها و کسر از موجودی
                 foreach ($this->cart as $item) {
-                    $batch = ProductBatch::findOrFail($item['batch_id']);
+                    $batch = ProductBatch::lockForUpdate()->findOrFail($item['batch_id']);
 
-                    // بررسی نهایی موجودی
                     if ((int) $batch->quantity < (int) $item['qty']) {
                         throw new \Exception(
-                            "موجودی محصول '{$item['product_name']}' در این لحظه کافی نیست."
+                            "موجودی کالای «{$item['product_name']}» کافی نیست (موجودی فعلی: {$batch->quantity})."
                         );
                     }
 
-                    // کاهش موجودی بچ
                     $batch->quantity -= (int) $item['qty'];
                     $batch->save();
 
-                    // ثبت آیتم فاکتور
                     $invoiceItem = new InvoiceItem();
                     $invoiceItem->invoice_id = $invoice->id;
                     $invoiceItem->product_batch_id = $batch->id;
@@ -230,17 +251,20 @@ new class extends Component {
                 }
             });
 
+            unset($this->productbatches);
+
             session()->flash(
                 'success',
-                "فروش برای مغازه «{$customer->shop_name}» با موفقیت ثبت شد و موجودی انبار به‌روزرسانی گردید."
+                "فروش برای مشتری «{$customer->shop_name}» با موفقیت ثبت شد و موجودی انبار به‌روز گردید."
             );
 
-            // خالی کردن سبد و انتخاب مشتری برای فروش بعدی
             $this->clearCart();
             $this->customer_id = '';
 
-        } catch (\Exception $e) {
-            $this->addError('checkout_error', 'خطا در ثبت فروش: ' . $e->getMessage());
+        } catch (\Throwable $e) {
+            report($e);
+            $this->addError('checkout_error', 'خطا در ثبت فاکتور: ' . $e->getMessage());
         }
     }
 };
+

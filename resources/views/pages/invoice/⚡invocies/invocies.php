@@ -9,9 +9,12 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
+use Livewire\WithPagination;
 
 new class extends Component
 {
+    use WithPagination;
+
     public $invoice_id = '';
 
     public $total_p = 0;
@@ -30,6 +33,8 @@ new class extends Component
 
     public $items = [];
 
+    public $search = '';
+
     public $sortBy = 'invoice_date';
 
     public $sortDirection = 'desc';
@@ -39,14 +44,33 @@ new class extends Component
         $this->profile_id = auth()->user()->profile->id ?? null;
     }
 
+    public function updatedSearch()
+    {
+        $this->resetPage();
+    }
+
     public function sort($column)
     {
+        $allowedColumns = [
+            'invoice_date',
+            'total_price',
+            'id',
+        ];
+
+        if (! in_array($column, $allowedColumns, true)) {
+            return;
+        }
+
         if ($this->sortBy === $column) {
-            $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
+            $this->sortDirection = $this->sortDirection === 'asc'
+                ? 'desc'
+                : 'asc';
         } else {
             $this->sortBy = $column;
             $this->sortDirection = 'asc';
         }
+
+        $this->resetPage();
     }
 
     #[Computed]
@@ -54,7 +78,23 @@ new class extends Component
     {
         return Invoice::query()
             ->with(['customer', 'profile'])
-            ->tap(fn ($query) => $this->sortBy ? $query->orderBy($this->sortBy, $this->sortDirection) : $query)
+            ->when(
+                filled(trim($this->search)),
+                function ($query) {
+                    $search = '%' . trim($this->search) . '%';
+
+                    $query->whereHas('customer', function ($customerQuery) use ($search) {
+                        $customerQuery->where('shop_name', 'like', $search);
+                    });
+                }
+            )
+            ->when(
+                $this->sortBy,
+                fn ($query) => $query->orderBy(
+                    $this->sortBy,
+                    $this->sortDirection
+                )
+            )
             ->paginate(15);
     }
 
@@ -71,6 +111,7 @@ new class extends Component
     {
         return ProductBatch::query()
             ->with('product')
+            ->where('quantity', '>', 0)
             ->orderBy('id', 'desc')
             ->get();
     }
@@ -136,11 +177,9 @@ new class extends Component
             if ($batchId) {
                 $batch = ProductBatch::find($batchId);
 
-                if ($batch) {
-                    $this->items[$index]['price'] = (float) ($batch->sale_price ?? 0);
-                } else {
-                    $this->items[$index]['price'] = 0;
-                }
+                $this->items[$index]['price'] = $batch
+                    ? (float) ($batch->sale_price ?? 0)
+                    : 0;
             } else {
                 $this->items[$index]['price'] = 0;
             }
@@ -177,8 +216,15 @@ new class extends Component
             'invoice_date' => ['required', 'date'],
 
             'items' => ['required', 'array', 'min:1'],
-            'items.*.product_batch_id' => ['required', 'exists:product_batches,id'],
-            'items.*.quantity' => ['required', 'integer', 'min:1'],
+            'items.*.product_batch_id' => [
+                'required',
+                'exists:product_batches,id',
+            ],
+            'items.*.quantity' => [
+                'required',
+                'integer',
+                'min:1',
+            ],
         ];
     }
 
@@ -228,7 +274,9 @@ new class extends Component
 
                     if ($requestedQuantity > $availableQuantity) {
                         throw ValidationException::withMessages([
-                            "items.$index.quantity" => "موجودی محصول '{$batch->product?->name}' کافی نیست. موجودی فعلی: {$availableQuantity}",
+                            "items.$index.quantity" =>
+                                "موجودی محصول '{$batch->product?->name}' کافی نیست. "
+                                . "موجودی فعلی: {$availableQuantity}",
                         ]);
                     }
 
@@ -255,13 +303,22 @@ new class extends Component
         } catch (ValidationException $e) {
             throw $e;
         } catch (\Throwable $e) {
-            $this->addError('general', 'خطا در ثبت فاکتور: ' . $e->getMessage());
+            report($e);
+
+            $this->addError(
+                'general',
+                'خطا در ثبت فاکتور: ' . $e->getMessage()
+            );
         }
     }
 
     public function edit(Invoice $invoice)
     {
-        $invoice->load(['customer', 'profile', 'items.productBatch.product']);
+        $invoice->load([
+            'customer',
+            'profile',
+            'items.productBatch.product',
+        ]);
 
         $this->resetForm();
         $this->resetValidation();
@@ -270,7 +327,10 @@ new class extends Component
         $this->total_p = (float) $invoice->total_price;
         $this->invoice_date = $invoice->invoice_date;
         $this->customers_name = $invoice->customer->shop_name ?? '';
-        $this->seller_name = trim(($invoice->profile->first_name ?? '') . ' ' . ($invoice->profile->last_name ?? ''));
+        $this->seller_name = trim(
+            ($invoice->profile->first_name ?? '') . ' '
+            . ($invoice->profile->last_name ?? '')
+        );
         $this->customer_id = $invoice->customer_id;
         $this->profile_id = $invoice->profile_id;
 
@@ -302,13 +362,19 @@ new class extends Component
 
         try {
             DB::transaction(function () {
-                $invoice = Invoice::with('items')->findOrFail($this->invoice_id);
+                $invoice = Invoice::with('items')
+                    ->lockForUpdate()
+                    ->findOrFail($this->invoice_id);
 
                 foreach ($invoice->items as $oldItem) {
-                    $oldBatch = ProductBatch::lockForUpdate()->find($oldItem->product_batch_id);
+                    $oldBatch = ProductBatch::lockForUpdate()
+                        ->find($oldItem->product_batch_id);
 
                     if ($oldBatch) {
-                        $oldBatch->quantity = (int) $oldBatch->quantity + (int) $oldItem->quantity;
+                        $oldBatch->quantity =
+                            (int) $oldBatch->quantity
+                            + (int) $oldItem->quantity;
+
                         $oldBatch->save();
                     }
                 }
@@ -332,7 +398,9 @@ new class extends Component
 
                     if ($requestedQuantity > $availableQuantity) {
                         throw ValidationException::withMessages([
-                            "items.$index.quantity" => "موجودی محصول '{$batch->product?->name}' کافی نیست. موجودی فعلی: {$availableQuantity}",
+                            "items.$index.quantity" =>
+                                "موجودی محصول '{$batch->product?->name}' کافی نیست. "
+                                . "موجودی فعلی: {$availableQuantity}",
                         ]);
                     }
 
@@ -359,7 +427,12 @@ new class extends Component
         } catch (ValidationException $e) {
             throw $e;
         } catch (\Throwable $e) {
-            $this->addError('general', 'خطا در ویرایش فاکتور: ' . $e->getMessage());
+            report($e);
+
+            $this->addError(
+                'general',
+                'خطا در ویرایش فاکتور: ' . $e->getMessage()
+            );
         }
     }
 
@@ -374,13 +447,19 @@ new class extends Component
     {
         try {
             DB::transaction(function () {
-                $invoice = Invoice::with('items')->findOrFail($this->invoice_to_delete_id);
+                $invoice = Invoice::with('items')
+                    ->lockForUpdate()
+                    ->findOrFail($this->invoice_to_delete_id);
 
                 foreach ($invoice->items as $item) {
-                    $batch = ProductBatch::lockForUpdate()->find($item->product_batch_id);
+                    $batch = ProductBatch::lockForUpdate()
+                        ->find($item->product_batch_id);
 
                     if ($batch) {
-                        $batch->quantity = (int) $batch->quantity + (int) $item->quantity;
+                        $batch->quantity =
+                            (int) $batch->quantity
+                            + (int) $item->quantity;
+
                         $batch->save();
                     }
                 }
@@ -392,7 +471,12 @@ new class extends Component
 
             Flux::modal('delete')->close();
         } catch (\Throwable $e) {
-            $this->addError('general', 'خطا در حذف فاکتور: ' . $e->getMessage());
+            report($e);
+
+            $this->addError(
+                'general',
+                'خطا در حذف فاکتور: ' . $e->getMessage()
+            );
         }
     }
 

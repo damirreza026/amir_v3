@@ -15,6 +15,11 @@ new class extends Component
 
     public Category $category;
 
+    // متغیرهای جست‌وجوی تفکیک‌شده
+    public string $search_product = '';
+
+    public string $search_employee = '';
+
     // اطلاعات فرم
     public string $product_name = '';
 
@@ -47,6 +52,16 @@ new class extends Component
         $this->pro_id = $category->products()->value('id');
     }
 
+    public function updatedSearchProduct(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedSearchEmployee(): void
+    {
+        $this->resetPage();
+    }
+
     public function sort(string $column): void
     {
         if ($this->sortBy === $column) {
@@ -69,6 +84,24 @@ new class extends Component
             ])
             ->whereHas('product', function ($query) {
                 $query->where('category_id', $this->category->id);
+            })
+            // فیلتر اختصاصی محصول
+            ->when(filled($this->search_product), function ($query) {
+                $term = '%' . trim($this->search_product) . '%';
+                $query->whereHas('product', function ($pQuery) use ($term) {
+                    $pQuery->where('name', 'like', $term);
+                });
+            })
+            // فیلتر اختصاصی کارمند
+            ->when(filled($this->search_employee), function ($query) {
+                $term = '%' . trim($this->search_employee) . '%';
+                $query->whereHas('profile', function ($profQuery) use ($term) {
+                    $profQuery->where(function ($subQuery) use ($term) {
+                        $subQuery->where('first_name', 'like', $term)
+                            ->orWhere('last_name', 'like', $term)
+                            ->orWhere(DB::raw("CONCAT(first_name, ' ', last_name)"), 'like', $term);
+                    });
+                });
             })
             ->orderBy($this->sortBy, $this->sortDirection)
             ->paginate(15);
@@ -93,7 +126,6 @@ new class extends Component
             ],
             'sale_price' => ['required', 'numeric', 'min:0'],
 
-            // اجباری بودن فیلدهای تاریخ
             'p_date' => ['required', 'date'],
             'ex_date' => ['required', 'date', 'after_or_equal:p_date'],
 
@@ -171,7 +203,7 @@ new class extends Component
             session()->flash('success', 'موجودی جدید با موفقیت ثبت شد.');
             Flux::modal('save')->close();
             $this->reset_data();
-        } catch (Throwable $e) {
+        } catch (\Throwable $e) {
             report($e);
             $this->addError(
                 'save_error',
@@ -194,14 +226,6 @@ new class extends Component
         $this->sale_price = $productBatch->sale_price;
         $this->quantity = $productBatch->quantity;
 
-        /*
-        |----------------------------------------------------------------------
-        | input با type="date" فقط فرمت Y-m-d را قبول می‌کند.
-        | مثل: 2026-08-04
-        | اگر مقدار دیتابیس datetime باشد (مثل 2026-08-04 00:00:00)،
-        | بدون این تبدیل داخل تقویم مودال نمایش داده نمی‌شود.
-        |----------------------------------------------------------------------
-        */
         $this->p_date = $productBatch->production_date
             ? Carbon::parse($productBatch->production_date)->format('Y-m-d')
             : '';
@@ -243,7 +267,7 @@ new class extends Component
             session()->flash('success', 'اطلاعات موجودی با موفقیت ویرایش شد.');
             Flux::modal('edit-user')->close();
             $this->reset_data();
-        } catch (Throwable $e) {
+        } catch (\Throwable $e) {
             report($e);
             $this->addError(
                 'update_error',
@@ -285,7 +309,7 @@ new class extends Component
             session()->flash('success', 'موجودی با موفقیت حذف شد.');
             Flux::modal('delete-user')->close();
             $this->reset_data();
-        } catch (Throwable $e) {
+        } catch (\Throwable $e) {
             report($e);
             session()->flash(
                 'error',
@@ -295,3 +319,4 @@ new class extends Component
         }
     }
 };
+
