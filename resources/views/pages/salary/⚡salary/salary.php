@@ -17,10 +17,12 @@ new class extends Component
     public $selected_week_id = null;
 
     public $hourly_rate = 70000;
+    public $search = '';
 
     public $salary_id = null;
     public $profile_id = null;
     public $profile_name = '';
+    public $is_record_locked = false;
 
     public $modal_total_hours = 0.0;
     public $total_salary = 0;
@@ -49,6 +51,11 @@ new class extends Component
     }
 
     public function updatedSelectedWeekId(): void
+    {
+        unset($this->currentMonthData);
+    }
+
+    public function updatedSearch(): void
     {
         unset($this->currentMonthData);
     }
@@ -174,7 +181,19 @@ new class extends Component
 
         $weeks = $this->selectedWeeks();
 
+        $searchTerms = array_filter(explode(' ', trim($this->search)));
+
         return Profile::query()
+            ->when(! empty($searchTerms), function ($query) use ($searchTerms) {
+                $query->where(function ($q) use ($searchTerms) {
+                    foreach ($searchTerms as $term) {
+                        $q->where(function ($sub) use ($term) {
+                            $sub->where('first_name', 'like', "%{$term}%")
+                                ->orWhere('last_name', 'like', "%{$term}%");
+                        });
+                    }
+                });
+            })
             ->orderBy('first_name')
             ->orderBy('last_name')
             ->get()
@@ -259,6 +278,14 @@ new class extends Component
             ->where('payroll_week_id', $week->id)
             ->first();
 
+        $alreadyPaidOrApproved = Salary::query()
+            ->where('profile_id', $profileId)
+            ->where('payroll_year_id', $this->selected_year_id)
+            ->where('payroll_month_id', $this->selected_month_id)
+            ->whereIn('status', ['paid', 'approved'])
+            ->exists();
+
+        $this->is_record_locked = $alreadyPaidOrApproved;
         $this->salary_id = $salary?->id;
         $this->modal_total_hours = (float) (
             $salary?->overtime_hours ?? 0
@@ -350,6 +377,7 @@ new class extends Component
                 'profile_name',
                 'modal_total_hours',
                 'total_salary',
+                'is_record_locked',
             ]);
 
             unset($this->currentMonthData);

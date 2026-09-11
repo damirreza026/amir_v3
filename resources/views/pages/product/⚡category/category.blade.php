@@ -7,7 +7,7 @@
                 مدیریت دسته‌بندی محصولات
             </h1>
             <p class="mt-1 text-sm font-semibold text-gray-600">
-                کاربر: {{ Auth::user()?->profile?->first_name }} {{ Auth::user()?->profile?->last_name }}
+                کاربر فعال: {{ Auth::user()?->profile?->first_name }} {{ Auth::user()?->profile?->last_name }}
             </p>
         </div>
 
@@ -35,7 +35,7 @@
         </div>
     </div>
 
-    {{-- پیام‌های نشست --}}
+    {{-- پیام‌های وضعیت نشست --}}
     @if (session()->has('success'))
         <div class="flex items-center gap-2 rounded-xl border border-green-200 bg-green-50 p-4 text-sm font-bold text-green-800 shadow-sm">
             <svg class="size-5 shrink-0 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -54,7 +54,7 @@
         </div>
     @endif
 
-    {{-- نوار جست‌وجو --}}
+    {{-- نوار جست‌وجوی زنده --}}
     <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
         <div class="relative max-w-md">
             <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
@@ -84,7 +84,113 @@
         </div>
     </div>
 
-    {{-- جدول دسته‌بندی‌ها --}}
+    {{-- باکس فیلتر آبشاری تقویم شمسی (سال -> ماه -> روز) --}}
+    <div class="rounded-xl border border-gray-200 bg-gray-50/80 p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800/80">
+        <div class="mb-3 flex items-center justify-between">
+            <span class="text-xs font-bold text-gray-700 dark:text-gray-200">فیلتر تقویم شمسی:</span>
+            @if(!empty($selected_year))
+                <button
+                    type="button"
+                    wire:click="clearDateFilters"
+                    class="rounded bg-red-100 px-2 py-1 text-xs font-medium text-red-600 transition hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400 !cursor-pointer"
+                >
+                    حذف فیلترهای تاریخ
+                </button>
+            @endif
+        </div>
+
+        <div class="space-y-3">
+            {{-- ۱. انتخاب سال --}}
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="text-xs font-semibold text-gray-500 w-12">سال:</span>
+                <label class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 shadow-sm transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-700 dark:text-gray-300">
+                    <input
+                        type="radio"
+                        name="year_filter"
+                        value=""
+                        wire:model.live="selected_year"
+                        class="text-blue-600 focus:ring-blue-500"
+                    />
+                    <span>همه سال‌ها</span>
+                </label>
+
+                @foreach($this->availableYears as $year)
+                    <label class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 shadow-sm transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-700 dark:text-gray-300" wire:key="year-{{ $year }}">
+                        <input
+                            type="radio"
+                            name="year_filter"
+                            value="{{ $year }}"
+                            wire:model.live="selected_year"
+                            class="text-blue-600 focus:ring-blue-500"
+                        />
+                        <span class="font-bold">{{ $year }}</span>
+                    </label>
+                @endforeach
+            </div>
+
+            {{-- ۲. انتخاب ماه --}}
+            @if(!empty($selected_year) && count($this->availableMonths) > 0)
+                <div class="flex flex-wrap items-center gap-2 border-t border-gray-200 pt-3 dark:border-gray-700">
+                    <span class="text-xs font-semibold text-gray-500 w-12">ماه:</span>
+                    <label class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 shadow-sm transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-700 dark:text-gray-300">
+                        <input
+                            type="radio"
+                            name="month_filter"
+                            value=""
+                            wire:model.live="selected_month"
+                            class="text-blue-600 focus:ring-blue-500"
+                        />
+                        <span>تمام ماه‌های {{ $selected_year }}</span>
+                    </label>
+
+                    @foreach($this->availableMonths as $month)
+                        <label class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 shadow-sm transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-700 dark:text-gray-300" wire:key="month-{{ $month }}">
+                            <input
+                                type="radio"
+                                name="month_filter"
+                                value="{{ $month }}"
+                                wire:model.live="selected_month"
+                                class="text-blue-600 focus:ring-blue-500"
+                            />
+                            <span>{{ $persianMonths[$month] ?? $month }}</span>
+                        </label>
+                    @endforeach
+                </div>
+            @endif
+
+            {{-- ۳. انتخاب روز --}}
+            @if(!empty($selected_year) && !empty($selected_month) && count($this->availableDays) > 0)
+                <div class="flex flex-wrap items-center gap-2 border-t border-gray-200 pt-3 dark:border-gray-700">
+                    <span class="text-xs font-semibold text-gray-500 w-12">روز:</span>
+                    <label class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 shadow-sm transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-700 dark:text-gray-300">
+                        <input
+                            type="radio"
+                            name="day_filter"
+                            value=""
+                            wire:model.live="selected_day"
+                            class="text-blue-600 focus:ring-blue-500"
+                        />
+                        <span>تمام روزهای {{ $persianMonths[(int)$selected_month] }}</span>
+                    </label>
+
+                    @foreach($this->availableDays as $day)
+                        <label class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs text-gray-700 shadow-sm transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-700 dark:text-gray-300" wire:key="day-{{ $day }}">
+                            <input
+                                type="radio"
+                                name="day_filter"
+                                value="{{ $day }}"
+                                wire:model.live="selected_day"
+                                class="text-blue-600 focus:ring-blue-500"
+                            />
+                            <span>{{ $day }}</span>
+                        </label>
+                    @endforeach
+                </div>
+            @endif
+        </div>
+    </div>
+
+    {{-- جدول نمایش دسته‌بندی‌ها --}}
     <div class="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
         <table class="w-full text-right text-sm">
             <thead class="border-b border-gray-200 bg-gray-100/90 text-xs font-bold text-gray-800">
@@ -97,8 +203,24 @@
                         <span>نام دسته‌بندی</span>
                         @if ($sortBy === 'name')
                             <span class="text-xs font-extrabold text-indigo-600">
-                                    {{ $sortDirection === 'asc' ? '↑' : '↓' }}
-                                </span>
+                                {{ $sortDirection === 'asc' ? '↑' : '↓' }}
+                            </span>
+                        @endif
+                    </div>
+                </th>
+
+                <th class="px-5 py-4">ثبت شده توسط</th>
+
+                <th
+                    wire:click="sort('created_at')"
+                    class="cursor-pointer select-none px-5 py-4 transition hover:bg-gray-200/70"
+                >
+                    <div class="flex items-center gap-2">
+                        <span>تاریخ و زمان ثبت</span>
+                        @if ($sortBy === 'created_at')
+                            <span class="text-xs font-extrabold text-indigo-600">
+                                {{ $sortDirection === 'asc' ? '↑' : '↓' }}
+                            </span>
                         @endif
                     </div>
                 </th>
@@ -114,6 +236,42 @@
                 <tr wire:key="category-{{ $category->id }}" class="transition hover:bg-amber-50/40">
                     <td class="whitespace-nowrap px-5 py-4 text-base font-black text-zinc-950">
                         {{ $category->name }}
+                    </td>
+
+                    {{-- ستون ثبت شده توسط --}}
+                    <td class="whitespace-nowrap px-5 py-4 text-xs font-bold text-gray-700">
+                        @if($category->user)
+                            <span>{{ $category->user->profile?->first_name }} {{ $category->user->profile?->last_name }}</span>
+                        @else
+                            <span class="text-gray-400">-</span>
+                        @endif
+                    </td>
+
+                    {{-- ستون تاریخ و زمان ثبت بر اساس تایم‌زون تهران --}}
+                    <td class="whitespace-nowrap px-5 py-4 text-xs font-bold text-gray-600">
+                        @if($category->created_at)
+                            @php
+                                try {
+                                    $carbonTehran = \Carbon\Carbon::parse($category->created_at)->setTimezone('Asia/Tehran');
+                                    $jalaliDate = \Morilog\Jalali\Jalalian::fromCarbon($carbonTehran);
+                                } catch (\Throwable $e) {
+                                    $jalaliDate = null;
+                                }
+                            @endphp
+
+                            @if($jalaliDate)
+                                <div class="flex items-center gap-2">
+                                    <span dir="ltr">{{ $jalaliDate->format('Y/m/d') }}</span>
+                                    <span dir="ltr" class="rounded bg-gray-100 px-1.5 py-0.5 text-[11px] font-medium text-gray-500">
+                                        {{ $jalaliDate->format('H:i') }}
+                                    </span>
+                                </div>
+                            @else
+                                <span class="text-gray-400">-</span>
+                            @endif
+                        @else
+                            <span class="text-gray-400">-</span>
+                        @endif
                     </td>
 
                     <td class="whitespace-nowrap px-5 py-4">
@@ -161,9 +319,9 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="4" class="px-5 py-10 text-center text-sm font-bold text-gray-500">
-                        @if (filled($search))
-                            هیچ دسته‌بندی مطابق با عبارت «{{ $search }}» پیدا نشد.
+                    <td colspan="6" class="px-5 py-10 text-center text-sm font-bold text-gray-500">
+                        @if (filled($search) || filled($selected_year))
+                            هیچ دسته‌بندی مطابق با فیلترهای انتخابی پیدا نشد.
                         @else
                             هیچ دسته‌بندی یافت نشد.
                         @endif
@@ -174,12 +332,12 @@
         </table>
     </div>
 
-    {{-- صفحه‌بندی --}}
+    {{-- پیجینیشن --}}
     <div>
         {{ $this->categories->links() }}
     </div>
 
-    {{-- مودال افزودن دسته‌بندی --}}
+    {{-- مودال ثبت دسته‌بندی جدید --}}
     <flux:modal name="save-category" class="!w-full md:!w-[28rem] !overflow-hidden !rounded-2xl !border !border-gray-200 !bg-white !p-0 !shadow-xl" @close="reset_data">
         <div class="text-gray-900">
             <div class="border-b border-gray-200 bg-gray-50/80 px-6 py-4">

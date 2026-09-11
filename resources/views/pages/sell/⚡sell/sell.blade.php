@@ -2,6 +2,30 @@
     class="space-y-6"
     x-data="{ showFloatingCart: true }"
 >
+    {{--
+        تبدیل ایمن تاریخ میلادی به شمسی.
+
+        اگر مقدار تاریخ خراب، ناقص یا خارج از محدوده Morilog/Jalali باشد،
+        همان مقدار خام دیتابیس نمایش داده می‌شود تا کل صفحه متوقف نشود.
+    --}}
+    @php
+        $formatJalaliDate = static function ($date): string {
+            if (blank($date)) {
+                return '-';
+            }
+
+            try {
+                $carbonDate = $date instanceof \Carbon\CarbonInterface
+                    ? $date
+                    : \Carbon\Carbon::parse((string) $date);
+
+                return \Morilog\Jalali\Jalalian::fromCarbon($carbonDate)
+                    ->format('Y/m/d');
+            } catch (\Throwable $e) {
+                return (string) $date;
+            }
+        };
+    @endphp
 
     {{-- هدر صفحه --}}
     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -111,18 +135,21 @@
                                 <div class="font-medium text-zinc-900 dark:text-zinc-100">
                                     {{ $batch->product->name ?? '-' }}
                                 </div>
+
                                 <div class="text-xs text-zinc-500 dark:text-zinc-400">
-                                    ثبت: {{ ($batch->profile->first_name ?? '') . ' ' . ($batch->profile->last_name ?? '') }}
+                                    ثبت:
+                                    {{ trim(($batch->profile->first_name ?? '') . ' ' . ($batch->profile->last_name ?? '')) ?: '-' }}
                                 </div>
                             </flux:table.cell>
 
-                            {{-- تاریخ انقضاء و تولید --}}
+                            {{-- تاریخ انقضاء و تولید؛ تبدیل ایمن به شمسی --}}
                             <flux:table.cell class="whitespace-nowrap font-mono text-xs">
                                 <div class="text-zinc-800 dark:text-zinc-200">
-                                    {{ $batch->expiry_date ?: '-' }}
+                                    {{ $formatJalaliDate($batch->expiry_date) }}
                                 </div>
+
                                 <div class="text-[11px] text-zinc-400">
-                                    تولید: {{ $batch->production_date ?: '-' }}
+                                    تولید: {{ $formatJalaliDate($batch->production_date) }}
                                 </div>
                             </flux:table.cell>
 
@@ -179,10 +206,12 @@
                         <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-green-50 text-green-600 dark:bg-green-950/60 dark:text-green-400 font-bold text-sm">
                             🛒
                         </div>
+
                         <div>
                             <h3 class="text-base font-bold text-zinc-900 dark:text-zinc-100">
                                 سبد فروش کالا
                             </h3>
+
                             <span class="text-xs text-zinc-500 dark:text-zinc-400">
                                 {{ count($cart) }} ردیف ({{ $this->cartCount }} عدد)
                             </span>
@@ -204,8 +233,12 @@
 
                 {{-- فرم انتخاب مغازه / مشتری --}}
                 <div class="mt-4 space-y-1.5">
-                    <label for="customer_id" class="block text-xs font-semibold text-zinc-700 dark:text-zinc-300">
-                        مشتری / مغازه طرف حساب <span class="text-red-500">*</span>
+                    <label
+                        for="customer_id"
+                        class="block text-xs font-semibold text-zinc-700 dark:text-zinc-300"
+                    >
+                        مشتری / مغازه طرف حساب
+                        <span class="text-red-500">*</span>
                     </label>
 
                     <select
@@ -214,9 +247,11 @@
                         class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
                     >
                         <option value="">-- انتخاب مشتری --</option>
+
                         @foreach ($this->customers as $customer)
                             <option value="{{ $customer->id }}">
-                                {{ $customer->shop_name }} {{ $customer->phone ? '(' . $customer->phone . ')' : '' }}
+                                {{ $customer->shop_name }}
+                                {{ $customer->phone ? '(' . $customer->phone . ')' : '' }}
                             </option>
                         @endforeach
                     </select>
@@ -242,8 +277,16 @@
                                     </h4>
 
                                     <div class="mt-1 flex flex-wrap items-center gap-x-3 text-xs text-zinc-500 dark:text-zinc-400">
-                                        <span>تعداد: <strong class="text-zinc-800 dark:text-zinc-200">{{ $item['qty'] }}</strong></span>
-                                        <span>فی: {{ number_format((float) $item['price']) }}</span>
+                                        <span>
+                                            تعداد:
+                                            <strong class="text-zinc-800 dark:text-zinc-200">
+                                                {{ $item['qty'] }}
+                                            </strong>
+                                        </span>
+
+                                        <span>
+                                            فی: {{ number_format((float) $item['price']) }}
+                                        </span>
                                     </div>
 
                                     <div class="mt-1.5 text-xs font-bold text-green-600 dark:text-green-400 font-mono">
@@ -270,7 +313,7 @@
                     @endforelse
                 </div>
 
-                {{-- جمع کل و دکمه ثبت نهایی فاکتور (دارای حسگر اسکرول برای مخفی‌سازی دکمه شناور) --}}
+                {{-- جمع کل و دکمه ثبت نهایی فاکتور --}}
                 @if (count($cart) > 0)
                     <div
                         id="checkout-action-area"
@@ -280,7 +323,12 @@
                                     showFloatingCart = !entry.isIntersecting;
                                 });
                             }, { threshold: 0.15 });
+
                             observer.observe($el);
+
+                            $cleanup(() => {
+                                observer.disconnect();
+                            });
                         "
                         class="mt-5 space-y-3 border-t border-zinc-100 pt-4 dark:border-zinc-800"
                     >
@@ -319,7 +367,7 @@
 
     </div>
 
-    {{-- نوار شناور سبد برای موبایل: هنگام رسیدن به سبد خرید پایین، خودکار و نرم محو می‌شود --}}
+    {{-- نوار شناور سبد برای موبایل --}}
     @if (count($cart) > 0)
         <div
             x-show="showFloatingCart"
@@ -336,6 +384,7 @@
                     <div class="text-xs text-zinc-500 dark:text-zinc-400">
                         سبد: {{ $this->cartCount }} عدد
                     </div>
+
                     <div class="font-mono text-sm font-bold text-green-600 dark:text-green-400">
                         {{ number_format((float) $this->cartTotal) }} تومان
                     </div>
@@ -345,8 +394,12 @@
                     type="button"
                     @click="
                         const el = document.getElementById('cart-section');
+
                         if (el) {
-                            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            el.scrollIntoView({
+                                behavior: 'smooth',
+                                block: 'start'
+                            });
                         }
                     "
                     class="cursor-pointer rounded-lg bg-green-600 px-4 py-2 text-xs font-semibold text-white shadow transition hover:bg-green-700 active:scale-95"
@@ -420,8 +473,8 @@
 
                     @error('quan')
                     <p class="mt-1 text-xs font-medium text-red-600">
-                    {{ $message }}
-                    <p>
+                        {{ $message }}
+                    </p>
                     @enderror
                 </div>
             </div>

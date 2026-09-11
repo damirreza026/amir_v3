@@ -1,5 +1,37 @@
 <div dir="rtl" class="space-y-4">
 
+    @php
+        $currentJalaliYear = (int) \Morilog\Jalali\Jalalian::now()->getYear();
+        $startYear = $currentJalaliYear;
+        $endYear = 1398;
+
+        $formatJalaliDateTime = static function ($date, $time = null): array {
+            if (blank($date)) {
+                return ['date' => '---', 'time' => ''];
+            }
+
+            try {
+                $rawString = (string) $date;
+                if ($time) {
+                    $rawString .= ' ' . (string) $time;
+                }
+
+                $carbonDate = \Carbon\Carbon::parse($rawString)->timezone('Asia/Tehran');
+                $jalali = \Morilog\Jalali\Jalalian::fromCarbon($carbonDate);
+
+                return [
+                    'date' => $jalali->format('Y/m/d'),
+                    'time' => $jalali->format('H:i:s'),
+                ];
+            } catch (\Throwable $e) {
+                return [
+                    'date' => (string) $date,
+                    'time' => $time ? (string) $time : '',
+                ];
+            }
+        };
+    @endphp
+
     {{-- هدر صفحه --}}
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -42,28 +74,76 @@
     </div>
     @enderror
 
-    {{-- نوار جست‌وجو --}}
+    {{-- نوار جست‌وجو و فیلتر تاریخ شمسی --}}
     <div class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div class="w-full sm:max-w-md">
-                <flux:input
-                    wire:model.live.debounce.400ms="search"
-                    label="جست‌وجوی نام فروشگاه"
-                    placeholder="نام فروشگاه را وارد کنید..."
-                    autocomplete="off"
-                    clearable
-                />
+        <div class="space-y-3">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div class="w-full sm:max-w-md">
+                    <flux:input
+                        wire:model.live.debounce.400ms="search"
+                        label="جست‌وجوی نام فروشگاه"
+                        placeholder="نام فروشگاه را وارد کنید..."
+                        autocomplete="off"
+                        clearable
+                    />
+                </div>
+
+                <div class="text-sm text-zinc-500 dark:text-zinc-400">
+                    تعداد فاکتورها:
+                    <span class="font-bold text-zinc-800 dark:text-zinc-200">
+                        {{ $this->invoices->total() }}
+                    </span>
+                </div>
             </div>
 
-            <div class="text-sm text-zinc-500 dark:text-zinc-400">
-                تعداد فاکتورها:
-                <span class="font-bold text-zinc-800 dark:text-zinc-200">
-                    {{ $this->invoices->total() }}
-                </span>
+            {{-- فیلتر بر اساس سال، ماه و روز شمسی پویا --}}
+            <div class="grid grid-cols-1 gap-2 pt-2 border-t border-zinc-100 dark:border-zinc-800 sm:grid-cols-4">
+                <div>
+                    <flux:select wire:model.live="filter_year" label="فیلتر سال شمسی">
+                        <option value="">همه سال‌ها</option>
+                        @for ($y = $startYear; $y >= $endYear; $y--)
+                            <option value="{{ $y }}">{{ $y }}</option>
+                        @endfor
+                    </flux:select>
+                </div>
+
+                <div>
+                    <flux:select wire:model.live="filter_month" label="فیلتر ماه شمسی">
+                        <option value="">همه ماه‌ها</option>
+                        <option value="1">فروردین (۰۱)</option>
+                        <option value="2">اردیبهشت (۰۲)</option>
+                        <option value="3">خرداد (۰۳)</option>
+                        <option value="4">تیر (۰۴)</option>
+                        <option value="5">مرداد (۰۵)</option>
+                        <option value="6">شهریور (۰۶)</option>
+                        <option value="7">مهر (۰۷)</option>
+                        <option value="8">آبان (۰۸)</option>
+                        <option value="9">آذر (۰۹)</option>
+                        <option value="10">دی (۱۰)</option>
+                        <option value="11">بهمن (۱۱)</option>
+                        <option value="12">اسفند (۱۲)</option>
+                    </flux:select>
+                </div>
+
+                <div>
+                    <flux:select wire:model.live="filter_day" label="فیلتر روز شمسی">
+                        <option value="">همه روزها</option>
+                        @for ($d = 1; $d <= 31; $d++)
+                            <option value="{{ $d }}">{{ str_pad($d, 2, '0', STR_PAD_LEFT) }}</option>
+                        @endfor
+                    </flux:select>
+                </div>
+
+                <div class="flex items-end">
+                    @if (filled($filter_year) || filled($filter_month) || filled($filter_day))
+                        <flux:button type="button" variant="ghost" color="red" wire:click="resetDateFilters" class="w-full text-xs">
+                            حذف فیلتر تاریخ ✕
+                        </flux:button>
+                    @endif
+                </div>
             </div>
         </div>
     </div>
-
     {{-- جدول فاکتورها --}}
     <div class="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
         <div class="overflow-x-auto">
@@ -92,7 +172,7 @@
                         :direction="$sortDirection"
                         wire:click="sort('invoice_date')"
                     >
-                        تاریخ فاکتور
+                        تاریخ و ساعت فاکتور
                     </flux:table.column>
 
                     <flux:table.column>
@@ -122,8 +202,20 @@
                                 <span class="text-xs font-normal">تومان</span>
                             </flux:table.cell>
 
-                            <flux:table.cell class="whitespace-nowrap">
-                                {{ $invoice->invoice_date }}
+                            {{-- تاریخ و زمان تقویم ایرانی --}}
+                            <flux:table.cell class="whitespace-nowrap font-mono text-xs">
+                                @php
+                                    $timeSource = $invoice->created_at ? $invoice->created_at->format('H:i:s') : null;
+                                    $dt = $formatJalaliDateTime($invoice->invoice_date, $timeSource);
+                                @endphp
+                                <div class="font-semibold text-zinc-800 dark:text-zinc-200">
+                                    {{ $dt['date'] }}
+                                </div>
+                                @if (!empty($dt['time']))
+                                    <div class="text-[11px] text-zinc-400">
+                                        ساعت: {{ $dt['time'] }}
+                                    </div>
+                                @endif
                             </flux:table.cell>
 
                             <flux:table.cell class="whitespace-nowrap">
@@ -170,10 +262,8 @@
                                 colspan="6"
                                 class="py-12 text-center text-sm text-zinc-500 dark:text-zinc-400"
                             >
-                                @if (filled($search))
-                                    هیچ فاکتوری برای نام فروشگاه
-                                    «{{ $search }}»
-                                    پیدا نشد.
+                                @if (filled($search) || filled($filter_year) || filled($filter_month) || filled($filter_day))
+                                    هیچ فاکتوری با فیلترهای انتخابی پیدا نشد.
                                 @else
                                     هنوز فاکتوری ثبت نشده است.
                                 @endif
@@ -204,8 +294,8 @@
             </div>
             @enderror
 
-            <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <div>
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-12">
+                <div class="md:col-span-4">
                     <flux:select
                         wire:model.live="customer_id"
                         label="مشتری"
@@ -226,12 +316,42 @@
                     @enderror
                 </div>
 
-                <div>
-                    <flux:input
-                        type="date"
-                        wire:model.live="invoice_date"
-                        label="تاریخ فاکتور"
-                    />
+                {{-- انتخاب تاریخ شمسی در مودال ثبت --}}
+                <div class="md:col-span-5">
+                    <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                        تاریخ فاکتور (شمسی)
+                    </label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <flux:select wire:model.live="invoice_day">
+                            <option value="">روز</option>
+                            @for ($d = 1; $d <= 31; $d++)
+                                <option value="{{ $d }}">{{ str_pad($d, 2, '0', STR_PAD_LEFT) }}</option>
+                            @endfor
+                        </flux:select>
+
+                        <flux:select wire:model.live="invoice_month">
+                            <option value="">ماه</option>
+                            <option value="1">فروردین</option>
+                            <option value="2">اردیبهشت</option>
+                            <option value="3">خرداد</option>
+                            <option value="4">تیر</option>
+                            <option value="5">مرداد</option>
+                            <option value="6">شهریور</option>
+                            <option value="7">مهر</option>
+                            <option value="8">آبان</option>
+                            <option value="9">آذر</option>
+                            <option value="10">دی</option>
+                            <option value="11">بهمن</option>
+                            <option value="12">اسفند</option>
+                        </flux:select>
+
+                        <flux:select wire:model.live="invoice_year">
+                            <option value="">سال</option>
+                            @for ($y = $startYear; $y >= $endYear; $y--)
+                                <option value="{{ $y }}">{{ $y }}</option>
+                            @endfor
+                        </flux:select>
+                    </div>
 
                     @error('invoice_date')
                     <div class="mt-1 text-sm text-red-500">
@@ -240,7 +360,7 @@
                     @enderror
                 </div>
 
-                <div>
+                <div class="md:col-span-3">
                     <flux:input
                         wire:model.live="total_p"
                         label="مبلغ کل"
@@ -392,8 +512,8 @@
             </div>
             @enderror
 
-            <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <div>
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-12">
+                <div class="md:col-span-4">
                     <flux:select
                         wire:model.live="customer_id"
                         label="مشتری"
@@ -414,21 +534,56 @@
                     @enderror
                 </div>
 
-                <div>
-                    <flux:input
-                        type="date"
-                        wire:model.live="invoice_date"
-                        label="تاریخ فاکتور"
-                    />
+                {{-- انتخاب تاریخ شمسی در مودال ویرایش --}}
+                <div class="md:col-span-5">
+                    <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                        تاریخ فاکتور (شمسی)
+                    </label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <flux:select wire:model.live="invoice_day">
+                            <option value="">روز</option>
+                            @for ($d = 1; $d <= 31; $d++)
+                                <option value="{{ $d }}">{{ str_pad($d, 2, '0', STR_PAD_LEFT) }}</option>
+                            @endfor
+                        </flux:select>
+
+                        <flux:select wire:model.live="invoice_month">
+                            <option value="">ماه</option>
+                            <option value="1">فروردین</option>
+                            <option value="2">اردیبهشت</option>
+                            <option value="3">خرداد</option>
+                            <option value="4">تیر</option>
+                            <option value="5">مرداد</option>
+                            <option value="6">شهریور</option>
+                            <option value="7">مهر</option>
+                            <option value="8">آبان</option>
+                            <option value="9">آذر</option>
+                            <option value="10">دی</option>
+                            <option value="11">بهمن</option>
+                            <option value="12">اسفند</option>
+                        </flux:select>
+
+                        <flux:select wire:model.live="invoice_year">
+                            <option value="">سال</option>
+                            @for ($y = $startYear; $y >= $endYear; $y--)
+                                <option value="{{ $y }}">{{ $y }}</option>
+                            @endfor
+                        </flux:select>
+                    </div>
 
                     @error('invoice_date')
                     <div class="mt-1 text-sm text-red-500">
                         {{ $message }}
                     </div>
                     @enderror
+                    @error('invoice_year')
+                    <div class="mt-1 text-sm text-red-500">
+                        {{ $message }}
+                    </div>
+                    @enderror
                 </div>
 
-                <div>
+                <div class="md:col-span-3">
                     <flux:input
                         wire:model.live="total_p"
                         label="مبلغ کل"
@@ -560,7 +715,7 @@
         </div>
     </flux:modal>
 
-    {{-- مودال حذف --}}
+    {{-- مودال حذف فاکتور --}}
     <flux:modal name="delete" class="w-full max-w-md">
         <div class="space-y-6">
             <div>

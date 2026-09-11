@@ -90,6 +90,6 @@ new #[Title('تنظیمات پروفایل')] class extends Component {
             </div>
         </form>
 
-        <livewire:pages::settings.delete-user-form />
+{{--        <livewire:pages::settings.delete-user-form />--}}
     </x-pages::settings.layout>
 </section>

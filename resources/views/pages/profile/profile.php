@@ -3,12 +3,15 @@
 use App\Models\Profile;
 use App\Models\Role;
 use App\Models\User;
+use Carbon\Carbon;
+use Flux\Flux;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Morilog\Jalali\Jalalian;
 
 new class extends Component
 {
@@ -16,23 +19,54 @@ new class extends Component
 
     // متغیرهای فرم
     public $user_name = '';
+
     public $password = '';
+
     public $confirm_password = '';
+
     public $f_name = '';
+
     public $l_name = '';
+
     public $phone = '';
+
     public $national_code = '';
+
     public $address = '';
 
     // متغیرهای جستجو
     public $search_national_code = '';
+
     public $search_last_name = '';
+
+    // متغیرهای فیلتر آبشاری تاریخ شمسی
+    public $selected_year = '';
+
+    public $selected_month = '';
+
+    public $selected_day = '';
+
+    public array $persianMonths = [
+        1 => 'فروردین',
+        2 => 'اردیبهشت',
+        3 => 'خرداد',
+        4 => 'تیر',
+        5 => 'مرداد',
+        6 => 'شهریور',
+        7 => 'مهر',
+        8 => 'آبان',
+        9 => 'آذر',
+        10 => 'دی',
+        11 => 'بهمن',
+        12 => 'اسفند',
+    ];
 
     // شناسه نقش انتخابی
     public $role_id = '';
 
-    // شناسه پروفایل و کاربر در حال ویرایش یا حذف
+    // شناسه پروفایل و کاربر در حال ویرایش
     public $profile_id = null;
+
     public $user_id = null;
 
     // آیا در حال ویرایش پروفایل خودِ کاربر لاگین‌شده هستیم؟
@@ -40,6 +74,7 @@ new class extends Component
 
     // متغیرهای مرتب‌سازی جدول
     public $sortBy = 'first_name';
+
     public $sortDirection = 'asc';
 
     public function updatedSearchNationalCode(): void
@@ -49,6 +84,30 @@ new class extends Component
 
     public function updatedSearchLastName(): void
     {
+        $this->resetPage();
+    }
+
+    public function updatedSelectedYear(): void
+    {
+        $this->selected_month = '';
+        $this->selected_day = '';
+        $this->resetPage();
+    }
+
+    public function updatedSelectedMonth(): void
+    {
+        $this->selected_day = '';
+        $this->resetPage();
+    }
+
+    public function updatedSelectedDay(): void
+    {
+        $this->resetPage();
+    }
+
+    public function clearDateFilters(): void
+    {
+        $this->reset(['selected_year', 'selected_month', 'selected_day']);
         $this->resetPage();
     }
 
@@ -80,9 +139,85 @@ new class extends Component
     }
 
     #[Computed]
+    public function distinctJalaliDates()
+    {
+        $dates = Profile::query()
+            ->select(DB::raw('DATE(created_at) as created_date'))
+            ->whereNotNull('created_at')
+            ->groupBy('created_date')
+            ->orderBy('created_date', 'desc')
+            ->pluck('created_date');
+
+        $result = [];
+        foreach ($dates as $dateStr) {
+            try {
+                $carbon = Carbon::parse($dateStr);
+                $jalali = Jalalian::fromCarbon($carbon);
+                $result[] = [
+                    'year' => (int) $jalali->getYear(),
+                    'month' => (int) $jalali->getMonth(),
+                    'day' => (int) $jalali->getDay(),
+                ];
+            } catch (\Throwable $e) {
+                continue;
+            }
+        }
+
+        return collect($result);
+    }
+
+    #[Computed]
+    public function availableYears(): array
+    {
+        return $this->distinctJalaliDates
+            ->pluck('year')
+            ->unique()
+            ->sortDesc()
+            ->values()
+            ->all();
+    }
+
+    #[Computed]
+    public function availableMonths(): array
+    {
+        if (empty($this->selected_year)) {
+            return [];
+        }
+
+        return $this->distinctJalaliDates
+            ->where('year', (int) $this->selected_year)
+            ->pluck('month')
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+    }
+
+    #[Computed]
+    public function availableDays(): array
+    {
+        if (empty($this->selected_year) || empty($this->selected_month)) {
+            return [];
+        }
+
+        return $this->distinctJalaliDates
+            ->where('year', (int) $this->selected_year)
+            ->where('month', (int) $this->selected_month)
+            ->pluck('day')
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+    }
+
+    #[Computed]
     public function profiles()
     {
-        $query = Profile::query()->with(['user']);
+        $query = Profile::query()->with([
+            'user',
+            'creator.profile',
+            'updater.profile',
+        ]);
 
         // اگر کاربر ادمین است، نباید سوپرادمین‌ها (role_id = 1) را ببیند
         if ($this->isAdmin()) {
@@ -90,13 +225,41 @@ new class extends Component
         }
 
         // جستجو بر اساس کد ملی
-        if (!empty(trim($this->search_national_code))) {
-            $query->where('national_code', 'like', '%' . trim($this->search_national_code) . '%');
+        if (! empty(trim($this->search_national_code))) {
+            $query->where('national_code', 'like', '%'.trim($this->search_national_code).'%');
         }
 
         // جستجو بر اساس نام خانوادگی
-        if (!empty(trim($this->search_last_name))) {
-            $query->where('last_name', 'like', '%' . trim($this->search_last_name) . '%');
+        if (! empty(trim($this->search_last_name))) {
+            $query->where('last_name', 'like', '%'.trim($this->search_last_name).'%');
+        }
+
+        // اعمال فیلترهای آبشاری تاریخ شمسی
+        if (! empty($this->selected_year)) {
+            $year = (int) $this->selected_year;
+
+            if (! empty($this->selected_month) && ! empty($this->selected_day)) {
+                $month = (int) $this->selected_month;
+                $day = (int) $this->selected_day;
+
+                $startGDate = (new Jalalian($year, $month, $day, 0, 0, 0))->toCarbon();
+                $endGDate = (new Jalalian($year, $month, $day, 23, 59, 59))->toCarbon();
+
+                $query->whereBetween('created_at', [$startGDate, $endGDate]);
+            } elseif (! empty($this->selected_month)) {
+                $month = (int) $this->selected_month;
+                $daysInMonth = ($month <= 6) ? 31 : (($month <= 11) ? 30 : 29);
+
+                $startGDate = (new Jalalian($year, $month, 1, 0, 0, 0))->toCarbon();
+                $endGDate = (new Jalalian($year, $month, $daysInMonth, 23, 59, 59))->toCarbon();
+
+                $query->whereBetween('created_at', [$startGDate, $endGDate]);
+            } else {
+                $startGDate = (new Jalalian($year, 1, 1, 0, 0, 0))->toCarbon();
+                $endGDate = (new Jalalian($year, 12, 29, 23, 59, 59))->toCarbon();
+
+                $query->whereBetween('created_at', [$startGDate, $endGDate]);
+            }
         }
 
         return $query
@@ -125,7 +288,7 @@ new class extends Component
     public function openAddModal()
     {
         $this->reset_deta();
-        \Flux\Flux::modal('add-user')->show();
+        Flux::modal('add-user')->show();
     }
 
     public function reset_deta()
@@ -148,6 +311,7 @@ new class extends Component
         // ادمین حق باز کردن یا ویرایش سوپرادمین را ندارد
         if ($this->isAdmin() && (int) $profile->role_id === 1) {
             session()->flash('error', 'شما دسترسی ویرایش سوپرادمین را ندارید.');
+
             return;
         }
 
@@ -170,7 +334,7 @@ new class extends Component
         $this->password = '';
         $this->confirm_password = '';
 
-        \Flux\Flux::modal('edit-user')->show();
+        Flux::modal('edit-user')->show();
     }
 
     public function update()
@@ -180,6 +344,7 @@ new class extends Component
         // جلوگیری از ویرایش سوپرادمین توسط ادمین
         if ($this->isAdmin() && (int) $profile->role_id === 1) {
             $this->addError('update_error', 'شما اجازه تغییر اطلاعات سوپرادمین را ندارید.');
+
             return;
         }
 
@@ -245,9 +410,11 @@ new class extends Component
                     'phone' => $this->phone,
                     'national_code' => $this->national_code,
                     'address' => $this->address,
+                    'updated_by' => Auth::id(),
+                    'last_modified_at' => now(),
                 ];
 
-                // هیچ کاربری (چه سوپرادمین، چه ادمین) نمی‌تواند نقش خودش را تغییر دهد
+                // هیچ کاربری نمی‌تواند نقش خودش را تغییر دهد
                 if (! $isSelf) {
                     $profileData['role_id'] = $this->role_id;
                 }
@@ -256,7 +423,7 @@ new class extends Component
             });
 
             session()->flash('success', 'اطلاعات کاربر با موفقیت ویرایش شد.');
-            \Flux\Flux::modal('edit-user')->close();
+            Flux::modal('edit-user')->close();
             $this->reset_deta();
 
         } catch (\Throwable $e) {
@@ -264,6 +431,8 @@ new class extends Component
         }
     }
 
+    /*
+    // توابع حذف موقتاً کامنت شدند
     public function delete_form(int $profileId)
     {
         $profile = Profile::findOrFail($profileId);
@@ -271,12 +440,14 @@ new class extends Component
         // کسی نمی‌تواند خودش را حذف کند
         if ((int) $profile->user_id === (int) Auth::id()) {
             session()->flash('error', 'شما نمی‌توانید حساب کاربری خودتان را حذف کنید.');
+
             return;
         }
 
         // ادمین نمی‌تواند سوپرادمین یا ادمین دیگر را حذف کند
         if ($this->isAdmin() && in_array((int) $profile->role_id, [1, 2])) {
             session()->flash('error', 'شما اجازه حذف این سطح کاربری را ندارید.');
+
             return;
         }
 
@@ -285,7 +456,7 @@ new class extends Component
         $this->f_name = $profile->first_name;
         $this->l_name = $profile->last_name;
 
-        \Flux\Flux::modal('delete-user')->show();
+        Flux::modal('delete-user')->show();
     }
 
     public function delete()
@@ -295,13 +466,15 @@ new class extends Component
 
             if ((int) $profile->user_id === (int) Auth::id()) {
                 session()->flash('error', 'امکان حذف حساب کاربری خودتان وجود ندارد.');
-                \Flux\Flux::modal('delete-user')->close();
+                Flux::modal('delete-user')->close();
+
                 return;
             }
 
             if ($this->isAdmin() && in_array((int) $profile->role_id, [1, 2])) {
                 session()->flash('error', 'شما اجازه حذف این کاربر را ندارید.');
-                \Flux\Flux::modal('delete-user')->close();
+                Flux::modal('delete-user')->close();
+
                 return;
             }
 
@@ -315,12 +488,13 @@ new class extends Component
             });
 
             session()->flash('success', 'کاربر با موفقیت از سیستم حذف گردید.');
-            \Flux\Flux::modal('delete-user')->close();
+            Flux::modal('delete-user')->close();
             $this->reset_deta();
 
         } catch (\Throwable $e) {
             session()->flash('error', 'خطا در حذف کاربر: '.$e->getMessage());
-            \Flux\Flux::modal('delete-user')->close();
+            Flux::modal('delete-user')->close();
         }
     }
+    */
 };

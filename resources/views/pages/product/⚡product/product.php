@@ -3,10 +3,12 @@
 use App\Models\Category;
 use App\Models\Product;
 use Flux\Flux;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Morilog\Jalali\Jalalian;
 
 new class extends Component {
     use WithPagination;
@@ -16,6 +18,27 @@ new class extends Component {
 
     // متغیر جست‌وجو
     public string $search = '';
+
+    // متغیرهای فیلتر تاریخ شمسی
+    public $selected_year = '';
+    public $selected_month = '';
+    public $selected_day = '';
+
+    // نام ماه‌های شمسی جهت نمایش در تب‌ها/دکمه‌های فیلتر
+    public array $persianMonths = [
+        1 => 'فروردین',
+        2 => 'اردیبهشت',
+        3 => 'خرداد',
+        4 => 'تیر',
+        5 => 'مرداد',
+        6 => 'شهریور',
+        7 => 'مهر',
+        8 => 'آبان',
+        9 => 'آذر',
+        10 => 'دی',
+        11 => 'بهمن',
+        12 => 'اسفند',
+    ];
 
     // متغیرهای فرم
     public $name = '';
@@ -36,6 +59,32 @@ new class extends Component {
         $this->resetPage();
     }
 
+    public function updatedSelectedYear()
+    {
+        $this->selected_month = '';
+        $this->selected_day = '';
+        $this->resetPage();
+    }
+
+    public function updatedSelectedMonth()
+    {
+        $this->selected_day = '';
+        $this->resetPage();
+    }
+
+    public function updatedSelectedDay()
+    {
+        $this->resetPage();
+    }
+
+    public function clearDateFilters()
+    {
+        $this->selected_year = '';
+        $this->selected_month = '';
+        $this->selected_day = '';
+        $this->resetPage();
+    }
+
     public function sort($column)
     {
         if ($this->sortBy === $column) {
@@ -51,9 +100,78 @@ new class extends Component {
     }
 
     #[Computed]
+    public function distinctJalaliDates()
+    {
+        return Product::query()
+            ->where('category_id', $this->category->id)
+            ->whereNotNull('created_at')
+            ->select('created_at')
+            ->get()
+            ->map(function ($item) {
+                try {
+                    $carbonTehran = \Carbon\Carbon::parse($item->created_at)->setTimezone('Asia/Tehran');
+                    $jalali = Jalalian::fromCarbon($carbonTehran);
+                    return [
+                        'year' => (int)$jalali->format('Y'),
+                        'month' => (int)$jalali->format('m'),
+                        'day' => (int)$jalali->format('d'),
+                    ];
+                } catch (\Throwable $e) {
+                    return null;
+                }
+            })
+            ->filter();
+    }
+
+    #[Computed]
+    public function availableYears()
+    {
+        return $this->distinctJalaliDates
+            ->pluck('year')
+            ->unique()
+            ->sortDesc()
+            ->values()
+            ->all();
+    }
+
+    #[Computed]
+    public function availableMonths()
+    {
+        if (empty($this->selected_year)) {
+            return [];
+        }
+
+        return $this->distinctJalaliDates
+            ->where('year', (int)$this->selected_year)
+            ->pluck('month')
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+    }
+
+    #[Computed]
+    public function availableDays()
+    {
+        if (empty($this->selected_year) || empty($this->selected_month)) {
+            return [];
+        }
+
+        return $this->distinctJalaliDates
+            ->where('year', (int)$this->selected_year)
+            ->where('month', (int)$this->selected_month)
+            ->pluck('day')
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+    }
+
+    #[Computed]
     public function products()
     {
         return Product::query()
+            ->with(['user.profile'])
             ->where('category_id', $this->category->id)
             ->when($this->search !== '', function ($query) {
                 $query->where(
@@ -61,6 +179,35 @@ new class extends Component {
                     'like',
                     '%' . trim($this->search) . '%'
                 );
+            })
+            ->when(!empty($this->selected_year), function ($query) {
+                $year = (int)$this->selected_year;
+
+                if (!empty($this->selected_month) && !empty($this->selected_day)) {
+                    $month = (int)$this->selected_month;
+                    $day = (int)$this->selected_day;
+
+                    $startMiladi = (new Jalalian($year, $month, $day, 0, 0, 0))->toCarbon('Asia/Tehran')->setTimezone('UTC');
+                    $endMiladi = (new Jalalian($year, $month, $day, 23, 59, 59))->toCarbon('Asia/Tehran')->setTimezone('UTC');
+
+                    $query->whereBetween('created_at', [$startMiladi, $endMiladi]);
+                } elseif (!empty($this->selected_month)) {
+                    $month = (int)$this->selected_month;
+                    $daysInMonth = $month <= 6 ? 31 : ($month <= 11 ? 30 : ((new Jalalian($year, 1, 1))->isLeapYear() ? 30 : 29));
+
+                    $startMiladi = (new Jalalian($year, $month, 1, 0, 0, 0))->toCarbon('Asia/Tehran')->setTimezone('UTC');
+                    $endMiladi = (new Jalalian($year, $month, $daysInMonth, 23, 59, 59))->toCarbon('Asia/Tehran')->setTimezone('UTC');
+
+                    $query->whereBetween('created_at', [$startMiladi, $endMiladi]);
+                } else {
+                    $lastMonth = 12;
+                    $lastDay = (new Jalalian($year, 1, 1))->isLeapYear() ? 30 : 29;
+
+                    $startMiladi = (new Jalalian($year, 1, 1, 0, 0, 0))->toCarbon('Asia/Tehran')->setTimezone('UTC');
+                    $endMiladi = (new Jalalian($year, $lastMonth, $lastDay, 23, 59, 59))->toCarbon('Asia/Tehran')->setTimezone('UTC');
+
+                    $query->whereBetween('created_at', [$startMiladi, $endMiladi]);
+                }
             })
             ->tap(function ($query) {
                 if ($this->sortBy) {
@@ -89,7 +236,6 @@ new class extends Component {
 
     public function save()
     {
-        // بررسی یکتا بودن نام محصول در این دسته‌بندی مشخص
         $this->validate([
             'name' => [
                 'required',
@@ -116,6 +262,9 @@ new class extends Component {
                 $product = new Product();
                 $product->name = $this->name;
                 $product->category_id = $this->category_id;
+                if (\Illuminate\Support\Facades\Schema::hasColumn('products', 'user_id')) {
+                    $product->user_id = Auth::id();
+                }
                 $product->save();
             });
 
@@ -146,7 +295,6 @@ new class extends Component {
 
     public function update()
     {
-        // بررسی یکتا بودن نام محصول به جز رکوردی که در حال ویرایش است
         $this->validate([
             'name' => [
                 'required',

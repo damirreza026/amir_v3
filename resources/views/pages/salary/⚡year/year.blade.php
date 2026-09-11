@@ -59,7 +59,7 @@
                             href="{{ URL::signedRoute('month', ['year' => $yearItem->id]) }}"
                             class="inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline"
                         >
-                            مشاهده و مدیریت ماه‌ها
+                            مشاهده و مدیریت هفته های هر ماه‌
                             <flux:icon.arrow-left class="size-4" />
                         </a>
                     </flux:table.cell>

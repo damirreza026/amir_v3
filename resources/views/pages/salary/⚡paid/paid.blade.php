@@ -56,9 +56,9 @@
             <flux:table.columns>
                 <flux:table.column>سال</flux:table.column>
                 <flux:table.column>ماه</flux:table.column>
-                <flux:table.column>مجموع ساعات</flux:table.column>
+                <flux:table.column>مجموع ساعات کارکرد (کلیک برای جزئیات)</flux:table.column>
                 <flux:table.column>مبلغ فیش</flux:table.column>
-                <flux:table.column>تاریخ صدور</flux:table.column>
+                <flux:table.column>تاریخ صدور (شمسی / تهران)</flux:table.column>
                 <flux:table.column>وضعیت</flux:table.column>
                 <flux:table.column>عملیات</flux:table.column>
             </flux:table.columns>
@@ -74,13 +74,19 @@
                             {{ $salary->month_name }}
                         </flux:table.cell>
 
+                        {{-- دکمه مشاهده ریز عملکرد با کلیک بر روی ساعت --}}
                         <flux:table.cell class="whitespace-nowrap">
-                            <span class="font-bold text-blue-600">
-                                {{ number_format((float) $salary->total_hours, 1) }}
-                            </span>
-                            <span class="text-xs text-gray-500">
-                                ساعت
-                            </span>
+                            <button
+                                type="button"
+                                wire:click="openPerformanceModal({{ $salary->month_id }})"
+                                title="مشاهده عملکرد هفتگی و نرخ هر هفته"
+                                class="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 hover:border-blue-300"
+                            >
+                                <span>{{ number_format((float) $salary->total_hours, 1) }} ساعت</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-3.5 opacity-70">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
+                                </svg>
+                            </button>
                         </flux:table.cell>
 
                         <flux:table.cell class="whitespace-nowrap">
@@ -96,9 +102,9 @@
                             @endif
                         </flux:table.cell>
 
-                        <flux:table.cell class="whitespace-nowrap text-sm text-gray-500">
-                            @if ($salary->issued_at)
-                                {{ \Illuminate\Support\Carbon::parse($salary->issued_at)->format('Y/m/d') }}
+                        <flux:table.cell class="whitespace-nowrap text-sm text-gray-600">
+                            @if ($salary->issued_at_jalali)
+                                <span class="font-mono text-xs">{{ $salary->issued_at_jalali }}</span>
                             @else
                                 ---
                             @endif
@@ -152,6 +158,83 @@
                 @endforelse
             </flux:table.rows>
         </flux:table>
+
+        {{-- مودال مشاهده ریز کارکرد و عملکرد ماهانه و هفتگی --}}
+        <flux:modal name="performance-detail-modal" class="w-full max-w-2xl">
+            <div class="space-y-6">
+                @if ($this->monthlyPerformanceDetails)
+                    <div>
+                        <flux:heading size="lg">
+                            ریز عملکرد و ساعات کارکرد ماهانه
+                        </flux:heading>
+                        <flux:text class="mt-1">
+                            {{ $this->monthlyPerformanceDetails->month_name }} سال {{ $this->monthlyPerformanceDetails->year }}
+                        </flux:text>
+                    </div>
+
+                    <div class="overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-700">
+                        <table class="min-w-full divide-y divide-zinc-200 text-sm dark:divide-zinc-700">
+                            <thead class="bg-zinc-50 dark:bg-zinc-800">
+                            <tr>
+                                <th class="px-4 py-3 text-right font-medium">عنوان هفته</th>
+                                <th class="px-4 py-3 text-center font-medium">ساعت کارکرد</th>
+                                <th class="px-4 py-3 text-center font-medium">نرخ ساعتی</th>
+                                <th class="px-4 py-3 text-center font-medium">مبلغ هفته</th>
+                            </tr>
+                            </thead>
+                            <tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">
+                            @forelse ($this->monthlyPerformanceDetails->weeks as $weekRow)
+                                <tr>
+                                    <td class="px-4 py-3 font-medium text-zinc-900 dark:text-zinc-100">
+                                        {{ $weekRow->week_name }}
+                                    </td>
+                                    <td class="px-4 py-3 text-center font-semibold text-blue-600">
+                                        {{ number_format($weekRow->hours, 2) }} ساعت
+                                    </td>
+                                    <td class="px-4 py-3 text-center text-zinc-600 dark:text-zinc-300">
+                                        {{ number_format($weekRow->rate) }} ریال
+                                    </td>
+                                    <td class="px-4 py-3 text-center font-semibold text-green-700 dark:text-green-400">
+                                        {{ number_format($weekRow->amount) }} ریال
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="4" class="px-4 py-6 text-center text-zinc-500">
+                                        اطلاعاتی برای این ماه ثبت نشده است.
+                                    </td>
+                                </tr>
+                            @endforelse
+                            </tbody>
+                            <tfoot class="bg-zinc-100 dark:bg-zinc-800/80 font-bold">
+                            <tr>
+                                <td class="px-4 py-3 text-right">مجموع کل:</td>
+                                <td class="px-4 py-3 text-center text-blue-700">
+                                    {{ number_format($this->monthlyPerformanceDetails->total_hours, 2) }} ساعت
+                                </td>
+                                <td class="px-4 py-3 text-center text-zinc-500">---</td>
+                                <td class="px-4 py-3 text-center text-green-700">
+                                    {{ number_format($this->monthlyPerformanceDetails->total_amount) }} ریال
+                                </td>
+                            </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                @else
+                    <p class="text-center text-sm text-zinc-500">
+                        اطلاعاتی برای نمایش وجود ندارد.
+                    </p>
+                @endif
+
+                <div class="flex justify-end">
+                    <flux:modal.close>
+                        <flux:button type="button" variant="ghost">
+                            بستن
+                        </flux:button>
+                    </flux:modal.close>
+                </div>
+            </div>
+        </flux:modal>
 
         {{-- مودال مشاهده و پرینت فیش --}}
         <flux:modal name="print-salary-modal" class="w-full max-w-3xl">
@@ -222,8 +305,8 @@
 
                             <div class="text-center text-xs text-zinc-500">
                                 تاریخ صدور:
-                                @if ($this->printableSalary->issued_at)
-                                    {{ \Illuminate\Support\Carbon::parse($this->printableSalary->issued_at)->format('Y/m/d') }}
+                                @if ($this->printableSalary->issued_at_jalali)
+                                    <span class="font-mono">{{ $this->printableSalary->issued_at_jalali }}</span>
                                 @else
                                     ---
                                 @endif
@@ -258,4 +341,11 @@
             </div>
         </flux:modal>
     @endif
+    <a
+        href="{{ URL::signedRoute('my_salary') }}"
+        class="inline-block rounded-lg !bg-blue-600 px-4 py-2 !text-white no-underline transition hover:!bg-blue-700"
+        style="background-color: #2563eb !important; color: #ffffff !important;"
+    >
+        برگشت
+    </a>
 </div>

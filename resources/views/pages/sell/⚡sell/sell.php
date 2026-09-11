@@ -10,41 +10,24 @@ use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Morilog\Jalali\Jalalian;
 
 new class extends Component
 {
     use WithPagination;
 
-    // جست‌وجوی محصول
     public string $search = '';
-
-    // متغیرهای بچ در حال انتخاب در مودال
     public string $prod_name = '';
-
     public string|int $pro_id = '';
-
     public string|float $sale_p = '';
-
     public string $pro_date = '';
-
     public string $ex_date = '';
-
-    // تعداد انتخابی برای افزودن به سبد
     public int $quan = 1;
-
-    // موجودی بچ انتخاب شده
     public int $available_qty = 0;
-
-    // سبد خرید موقت
     public array $cart = [];
-
-    // شناسه مغازه / مشتری انتخاب‌شده
     public string $customer_id = '';
-
-    // مرتب‌سازی
     public string $sortBy = 'expiry_date';
-
-    public string $sortDirection = 'desc';
+    public string $sortDirection = 'asc';
 
     public function updatedSearch(): void
     {
@@ -84,7 +67,6 @@ new class extends Component
             ->paginate(15);
     }
 
-    // دریافت لیست مغازه‌ها
     #[Computed]
     public function customers()
     {
@@ -113,8 +95,15 @@ new class extends Component
 
         $this->prod_name = (string) ($productBatch->product->name ?? '-');
         $this->sale_p = (float) $productBatch->sale_price;
-        $this->pro_date = (string) ($productBatch->production_date ?? '-');
-        $this->ex_date = (string) ($productBatch->expiry_date ?? '-');
+
+        // تبدیل تاریخ‌ها به شمسی برای نمایش در مودال
+        try {
+            $this->pro_date = $productBatch->production_date ? Jalalian::fromCarbon(\Carbon\Carbon::parse($productBatch->production_date))->format('Y/m/d') : '-';
+            $this->ex_date = $productBatch->expiry_date ? Jalalian::fromCarbon(\Carbon\Carbon::parse($productBatch->expiry_date))->format('Y/m/d') : '-';
+        } catch (\Exception $e) {
+            $this->pro_date = (string) ($productBatch->production_date ?? '-');
+            $this->ex_date = (string) ($productBatch->expiry_date ?? '-');
+        }
 
         $this->available_qty = (int) $productBatch->quantity;
         $this->quan = 1;
@@ -136,29 +125,18 @@ new class extends Component
         $requestedQty = (int) $this->quan;
 
         if ($requestedQty > $this->available_qty) {
-            $this->addError(
-                'quan',
-                "تعداد درخواستی از موجودی این بچ بیشتر است (موجودی: {$this->available_qty})"
-            );
-
+            $this->addError('quan', "تعداد درخواستی از موجودی این بچ بیشتر است (موجودی: {$this->available_qty})");
             return;
         }
 
-        // بررسی آیتم در سبد
         $existingIndex = collect($this->cart)->search(
             fn (array $item) => (int) $item['batch_id'] === (int) $this->pro_id
         );
 
-        $currentInCart = $existingIndex !== false
-            ? (int) $this->cart[$existingIndex]['qty']
-            : 0;
+        $currentInCart = $existingIndex !== false ? (int) $this->cart[$existingIndex]['qty'] : 0;
 
         if (($currentInCart + $requestedQty) > $this->available_qty) {
-            $this->addError(
-                'quan',
-                "مجموع تعداد در سبد خرید نمی‌تواند از موجودی انبار ({$this->available_qty}) بیشتر باشد."
-            );
-
+            $this->addError('quan', "مجموع تعداد در سبد خرید نمی‌تواند از موجودی انبار ({$this->available_qty}) بیشتر باشد.");
             return;
         }
 
@@ -177,8 +155,6 @@ new class extends Component
         }
 
         Flux::modal('edit-user')->close();
-
-        // ریست مقادیر موقت فرم مودال
         $this->reset(['prod_name', 'sale_p', 'pro_date', 'ex_date', 'quan', 'available_qty', 'pro_id']);
     }
 
@@ -198,29 +174,21 @@ new class extends Component
     public function checkout(): void
     {
         $this->resetValidation('checkout_error');
-
         if (empty($this->cart)) {
             $this->addError('checkout_error', 'سبد خرید شما خالی است.');
-
             return;
         }
 
-        $this->validate([
-            'customer_id' => ['required', 'exists:customers,id'],
-        ], [
+        $this->validate(['customer_id' => ['required', 'exists:customers,id']], [
             'customer_id.required' => 'لطفاً نام مغازه / مشتری را انتخاب کنید.',
             'customer_id.exists' => 'مشتری انتخاب‌شده در سیستم معتبر نیست.',
         ]);
 
         $customer = Customer::findOrFail($this->customer_id);
-
-        $profileId = Auth::user()?->profile?->id
-            ?? \App\Models\Profile::first()?->id
-            ?? 1;
+        $profileId = Auth::user()?->profile?->id ?? \App\Models\Profile::first()?->id ?? 1;
 
         try {
             DB::transaction(function () use ($customer, $profileId) {
-                // ثبت فاکتور
                 $invoice = new Invoice();
                 $invoice->customer_id = $customer->id;
                 $invoice->profile_id = $profileId;
@@ -228,19 +196,13 @@ new class extends Component
                 $invoice->invoice_date = now()->format('Y-m-d');
                 $invoice->save();
 
-                // ثبت آیتم‌ها و کسر از موجودی
                 foreach ($this->cart as $item) {
                     $batch = ProductBatch::lockForUpdate()->findOrFail($item['batch_id']);
-
                     if ((int) $batch->quantity < (int) $item['qty']) {
-                        throw new \Exception(
-                            "موجودی کالای «{$item['product_name']}» کافی نیست (موجودی فعلی: {$batch->quantity})."
-                        );
+                        throw new \Exception("موجودی کالای «{$item['product_name']}» کافی نیست.");
                     }
-
                     $batch->quantity -= (int) $item['qty'];
                     $batch->save();
-
                     $invoiceItem = new InvoiceItem();
                     $invoiceItem->invoice_id = $invoice->id;
                     $invoiceItem->product_batch_id = $batch->id;
@@ -252,19 +214,12 @@ new class extends Component
             });
 
             unset($this->productbatches);
-
-            session()->flash(
-                'success',
-                "فروش برای مشتری «{$customer->shop_name}» با موفقیت ثبت شد و موجودی انبار به‌روز گردید."
-            );
-
+            session()->flash('success', "فروش برای مشتری «{$customer->shop_name}» ثبت شد.");
             $this->clearCart();
             $this->customer_id = '';
-
         } catch (\Throwable $e) {
             report($e);
             $this->addError('checkout_error', 'خطا در ثبت فاکتور: ' . $e->getMessage());
         }
     }
 };
-

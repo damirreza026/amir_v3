@@ -12,7 +12,7 @@
     @endif
 
     <div class="flex flex-wrap items-center justify-end gap-3">
-        <div class="w-48">
+        <div class="w-40 sm:w-64 md:w-80">
             <flux:input
                 wire:model.live.debounce.300ms="search_national_code"
                 placeholder="جستجو با کد ملی..."
@@ -21,13 +21,119 @@
             />
         </div>
 
-        <div class="w-48">
+        <div class="w-40 sm:w-64 md:w-80">
             <flux:input
                 wire:model.live.debounce.300ms="search_last_name"
                 placeholder="جستجو با نام خانوادگی..."
                 icon="user"
                 clearable
             />
+        </div>
+    </div>
+
+    {{-- باکس فیلتر آبشاری تاریخ شمسی (سال -> ماه -> روز) --}}
+    <div class="rounded-xl border border-gray-200 bg-gray-50/80 p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800/80">
+        <div class="mb-3 flex items-center justify-between">
+            <span class="text-xs font-bold text-gray-700 dark:text-gray-200">فیلتر تقویم شمسی:</span>
+            @if(!empty($selected_year))
+                <button
+                    type="button"
+                    wire:click="clearDateFilters"
+                    class="rounded bg-red-100 px-2 py-1 text-xs font-medium text-red-600 transition hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400"
+                >
+                    حذف فیلترهای تاریخ
+                </button>
+            @endif
+        </div>
+
+        <div class="space-y-3">
+            {{-- ۱. انتخاب سال --}}
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="text-xs font-semibold text-gray-500 w-12">سال:</span>
+                <label class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 shadow-sm transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-700 dark:text-gray-300">
+                    <input
+                        type="radio"
+                        name="year_filter"
+                        value=""
+                        wire:model.live="selected_year"
+                        class="text-blue-600 focus:ring-blue-500"
+                    />
+                    <span>همه سال‌ها</span>
+                </label>
+
+                @foreach($this->availableYears as $year)
+                    <label class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 shadow-sm transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-700 dark:text-gray-300" wire:key="year-{{ $year }}">
+                        <input
+                            type="radio"
+                            name="year_filter"
+                            value="{{ $year }}"
+                            wire:model.live="selected_year"
+                            class="text-blue-600 focus:ring-blue-500"
+                        />
+                        <span class="font-bold">{{ $year }}</span>
+                    </label>
+                @endforeach
+            </div>
+
+            {{-- ۲. انتخاب ماه --}}
+            @if(!empty($selected_year) && count($this->availableMonths) > 0)
+                <div class="flex flex-wrap items-center gap-2 border-t border-gray-200 pt-3 dark:border-gray-700">
+                    <span class="text-xs font-semibold text-gray-500 w-12">ماه:</span>
+                    <label class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 shadow-sm transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-700 dark:text-gray-300">
+                        <input
+                            type="radio"
+                            name="month_filter"
+                            value=""
+                            wire:model.live="selected_month"
+                            class="text-blue-600 focus:ring-blue-500"
+                        />
+                        <span>تمام ماه‌های {{ $selected_year }}</span>
+                    </label>
+
+                    @foreach($this->availableMonths as $month)
+                        <label class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 shadow-sm transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-700 dark:text-gray-300" wire:key="month-{{ $month }}">
+                            <input
+                                type="radio"
+                                name="month_filter"
+                                value="{{ $month }}"
+                                wire:model.live="selected_month"
+                                class="text-blue-600 focus:ring-blue-500"
+                            />
+                            <span>{{ $persianMonths[$month] ?? $month }}</span>
+                        </label>
+                    @endforeach
+                </div>
+            @endif
+
+            {{-- ۳. انتخاب روز --}}
+            @if(!empty($selected_year) && !empty($selected_month) && count($this->availableDays) > 0)
+                <div class="flex flex-wrap items-center gap-2 border-t border-gray-200 pt-3 dark:border-gray-700">
+                    <span class="text-xs font-semibold text-gray-500 w-12">روز:</span>
+                    <label class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 shadow-sm transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-700 dark:text-gray-300">
+                        <input
+                            type="radio"
+                            name="day_filter"
+                            value=""
+                            wire:model.live="selected_day"
+                            class="text-blue-600 focus:ring-blue-500"
+                        />
+                        <span>تمام روزهای {{ $persianMonths[(int)$selected_month] }}</span>
+                    </label>
+
+                    @foreach($this->availableDays as $day)
+                        <label class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs text-gray-700 shadow-sm transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-700 dark:text-gray-300" wire:key="day-{{ $day }}">
+                            <input
+                                type="radio"
+                                name="day_filter"
+                                value="{{ $day }}"
+                                wire:model.live="selected_day"
+                                class="text-blue-600 focus:ring-blue-500"
+                            />
+                            <span>{{ $day }}</span>
+                        </label>
+                    @endforeach
+                </div>
+            @endif
         </div>
     </div>
 
@@ -45,13 +151,27 @@
             <flux:table.column sortable :sorted="$sortBy === 'national_code'" :direction="$sortDirection" wire:click="sort('national_code')">
                 کد ملی
             </flux:table.column>
-            <flux:table.column sortable :sorted="$sortBy === 'address'" :direction="$sortDirection" wire:click="sort('address')">
+            <flux:table.column>
                 آدرس
             </flux:table.column>
             <flux:table.column>
-                پست / نقش
+                نقش
             </flux:table.column>
-            <flux:table.column>عملیات</flux:table.column>
+            <flux:table.column>
+                ثبت شده توسط
+            </flux:table.column>
+            <flux:table.column>
+                تاریخ ثبت
+            </flux:table.column>
+            <flux:table.column>
+                ویرایش شده توسط
+            </flux:table.column>
+            <flux:table.column>
+                آخرین تغییر
+            </flux:table.column>
+{{--            <flux:table.column>--}}
+{{--                عملیات--}}
+{{--            </flux:table.column>--}}
         </flux:table.columns>
 
         <flux:table.rows>
@@ -80,20 +200,55 @@
                         @endif
                     </flux:table.cell>
 
+                    {{-- ثبت شده توسط --}}
                     <flux:table.cell class="whitespace-nowrap">
-                        <div class="flex space-x-2 space-x-reverse">
-                            <flux:button variant="primary" color="yellow" wire:click="edit({{ $profile->id }})">ویرایش</flux:button>
-
-                            {{-- اگر کاربر خودش باشد دکمه حذف نشان داده نمی‌شود --}}
-                            @if((int)$profile->user_id !== (int)auth()->id())
-                                <flux:button variant="primary" color="red" wire:click="delete_form({{ $profile->id }})">حذف</flux:button>
-                            @endif
-                        </div>
+                        @if($profile->creator)
+                            {{ $profile->creator->profile && !empty(trim($profile->creator->profile->first_name . ' ' . $profile->creator->profile->last_name))
+                                ? trim($profile->creator->profile->first_name . ' ' . $profile->creator->profile->last_name)
+                                : ($profile->creator->user_name ?? '-') }}
+                        @else
+                            <span class="text-gray-400">-</span>
+                        @endif
                     </flux:table.cell>
+
+                    {{-- تاریخ ثبت (شمسی بر اساس زمان ایران) --}}
+                    <flux:table.cell class="whitespace-nowrap font-mono text-xs text-gray-600">
+                        @if($profile->created_at)
+                            {{ \Morilog\Jalali\Jalalian::fromDateTime($profile->created_at->timezone('Asia/Tehran'))->format('Y/m/d H:i') }}
+                        @else
+                            -
+                        @endif
+                    </flux:table.cell>
+
+                    {{-- ویرایش شده توسط --}}
+                    <flux:table.cell class="whitespace-nowrap">
+                        @if($profile->updater)
+                            {{ $profile->updater->profile && !empty(trim($profile->updater->profile->first_name . ' ' . $profile->updater->profile->last_name))
+                                ? trim($profile->updater->profile->first_name . ' ' . $profile->updater->profile->last_name)
+                                : ($profile->updater->user_name ?? '-') }}
+                        @else
+                            <span class="text-gray-400">-</span>
+                        @endif
+                    </flux:table.cell>
+
+                    {{-- آخرین تغییر (شمسی بر اساس زمان ایران) --}}
+                    <flux:table.cell class="whitespace-nowrap font-mono text-xs text-gray-600">
+                        @if($profile->last_modified_at)
+                            {{ \Morilog\Jalali\Jalalian::fromDateTime(\Illuminate\Support\Carbon::parse($profile->last_modified_at)->timezone('Asia/Tehran'))->format('Y/m/d H:i') }}
+                        @else
+                            -
+                        @endif
+                    </flux:table.cell>
+
+{{--                    <flux:table.cell class="whitespace-nowrap">--}}
+{{--                        <div class="flex space-x-2 space-x-reverse">--}}
+{{--                            <flux:button variant="primary" color="yellow" wire:click="edit({{ $profile->id }})">ویرایش</flux:button>--}}
+{{--                        </div>--}}
+{{--                    </flux:table.cell>--}}
                 </flux:table.row>
             @empty
                 <flux:table.row>
-                    <flux:table.cell colspan="7">
+                    <flux:table.cell colspan="11">
                         <div class="py-6 text-center text-sm text-gray-500">
                             هیچ رکوردی یافت نشد.
                         </div>
@@ -105,7 +260,7 @@
 
     {{-- مودال ویرایش کاربر --}}
     <flux:modal name="edit-user" class="md:w-96" @close="reset_deta">
-        <div class="space-y-6">
+        <form wire:submit="update" class="space-y-6">
             <div>
                 <flux:heading size="lg">ویرایش پرسنل</flux:heading>
                 <flux:text class="mt-2">اطلاعات پرسنل را ویرایش نمایید</flux:text>
@@ -155,45 +310,23 @@
                 @error('address') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
             </div>
 
-            {{-- اگر کاربر در حال ویرایش خودش باشد فیلد نقش مخفی و قفل است --}}
             @if(! $isEditingSelf)
                 <div>
-                    <flux:select wire:model="role_id" label="نقش / سمت">
-                        <option value="">انتخاب نقش یا سمت</option>
+                    <flux:select wire:model="role_id" label="نقش">
+                        <flux:select.option value="">انتخاب نقش...</flux:select.option>
                         @foreach ($this->roles as $role)
-                            <flux:select.option value="{{ $role->id }}" wire:key="edit-role-{{ $role->id }}">
-                                {{ $role->name }}
-                            </flux:select.option>
+                            <flux:select.option value="{{ $role->id }}">{{ $role->name }}</flux:select.option>
                         @endforeach
                     </flux:select>
                     @error('role_id') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
                 </div>
-            @else
-                <div class="rounded-lg bg-gray-50 p-3 text-xs text-gray-500 border border-gray-200">
-                    🔒 نقش و سمت حساب کاربری شما توسط خودتان قابل تغییر نیست.
-                </div>
             @endif
 
-            <div class="flex">
-                <flux:spacer/>
-                <flux:button wire:click="update()" type="submit" variant="primary">تغییر نهایی</flux:button>
-            </div>
-        </div>
-    </flux:modal>
-
-    {{-- مودال حذف کاربر --}}
-    <flux:modal name="delete-user" class="md:w-96" @close="reset_deta">
-        <div class="space-y-6">
-            <div>
-                <flux:heading size="lg">حذف پرسنل</flux:heading>
-                <flux:text class="mt-2">آیا از حذف {{ $f_name.' '.$l_name }} مطمئن هستید؟</flux:text>
-            </div>
-
             <div class="flex space-x-2 space-x-reverse justify-end">
-                <flux:button wire:click="reset_deta" variant="ghost">لغو</flux:button>
-                <flux:button wire:click="delete()" type="submit" color="red" variant="primary">حذف</flux:button>
+                <flux:button wire:click="reset_deta" variant="ghost" type="button">لغو</flux:button>
+                <flux:button type="submit" variant="primary">ذخیره تغییرات</flux:button>
             </div>
-        </div>
+        </form>
     </flux:modal>
 
     <a

@@ -10,6 +10,7 @@ use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Morilog\Jalali\Jalalian;
 
 new class extends Component
 {
@@ -20,6 +21,12 @@ new class extends Component
     public $total_p = 0;
 
     public $invoice_date = '';
+
+    public $invoice_year = '';
+
+    public $invoice_month = '';
+
+    public $invoice_day = '';
 
     public $customers_name = '';
 
@@ -35,6 +42,12 @@ new class extends Component
 
     public $search = '';
 
+    public $filter_year = '';
+
+    public $filter_month = '';
+
+    public $filter_day = '';
+
     public $sortBy = 'invoice_date';
 
     public $sortDirection = 'desc';
@@ -46,6 +59,29 @@ new class extends Component
 
     public function updatedSearch()
     {
+        $this->resetPage();
+    }
+
+    public function updatedFilterYear()
+    {
+        $this->resetPage();
+    }
+
+    public function updatedFilterMonth()
+    {
+        $this->resetPage();
+    }
+
+    public function updatedFilterDay()
+    {
+        $this->resetPage();
+    }
+
+    public function resetDateFilters()
+    {
+        $this->filter_year = '';
+        $this->filter_month = '';
+        $this->filter_day = '';
         $this->resetPage();
     }
 
@@ -89,6 +125,37 @@ new class extends Component
                 }
             )
             ->when(
+                filled($this->filter_year) || filled($this->filter_month) || filled($this->filter_day),
+                function ($query) {
+                    $y = filled($this->filter_year) ? (int) $this->filter_year : null;
+                    $m = filled($this->filter_month) ? (int) $this->filter_month : null;
+                    $d = filled($this->filter_day) ? (int) $this->filter_day : null;
+
+                    if ($y && $m && $d) {
+                        try {
+                            $gDate = (new Jalalian($y, $m, $d))->toCarbon()->format('Y-m-d');
+                            $query->whereDate('invoice_date', $gDate);
+                        } catch (\Throwable $e) {
+                        }
+                    } elseif ($y && $m) {
+                        try {
+                            $daysInMonth = $m <= 6 ? 31 : ($m <= 11 ? 30 : 29);
+                            $startDate = (new Jalalian($y, $m, 1))->toCarbon()->startOfDay()->format('Y-m-d');
+                            $endDate = (new Jalalian($y, $m, $daysInMonth))->toCarbon()->endOfDay()->format('Y-m-d');
+                            $query->whereBetween('invoice_date', [$startDate, $endDate]);
+                        } catch (\Throwable $e) {
+                        }
+                    } elseif ($y) {
+                        try {
+                            $startDate = (new Jalalian($y, 1, 1))->toCarbon()->startOfDay()->format('Y-m-d');
+                            $endDate = (new Jalalian($y, 12, 29))->toCarbon()->endOfDay()->format('Y-m-d');
+                            $query->whereBetween('invoice_date', [$startDate, $endDate]);
+                        } catch (\Throwable $e) {
+                        }
+                    }
+                }
+            )
+            ->when(
                 $this->sortBy,
                 fn ($query) => $query->orderBy(
                     $this->sortBy,
@@ -120,12 +187,45 @@ new class extends Component
     {
         $this->resetForm();
 
-        $this->invoice_date = now()->format('Y-m-d');
+        $nowJalali = Jalalian::now();
+        $this->invoice_year = (string) $nowJalali->getYear();
+        $this->invoice_month = (string) $nowJalali->getMonth();
+        $this->invoice_day = (string) $nowJalali->getDay();
+        $this->syncInvoiceDateFromJalali();
+
         $this->profile_id = auth()->user()->profile->id ?? null;
 
         $this->addItem();
 
         Flux::modal('save')->show();
+    }
+
+    public function updatedInvoiceYear()
+    {
+        $this->syncInvoiceDateFromJalali();
+    }
+
+    public function updatedInvoiceMonth()
+    {
+        $this->syncInvoiceDateFromJalali();
+    }
+
+    public function updatedInvoiceDay()
+    {
+        $this->syncInvoiceDateFromJalali();
+    }
+
+    protected function syncInvoiceDateFromJalali(): void
+    {
+        if (filled($this->invoice_year) && filled($this->invoice_month) && filled($this->invoice_day)) {
+            try {
+                $this->invoice_date = (new Jalalian((int) $this->invoice_year, (int) $this->invoice_month, (int) $this->invoice_day))->toCarbon()->format('Y-m-d');
+            } catch (\Throwable $e) {
+                $this->invoice_date = '';
+            }
+        } else {
+            $this->invoice_date = '';
+        }
     }
 
     public function addItem()
@@ -213,6 +313,9 @@ new class extends Component
     {
         return [
             'customer_id' => ['required', 'exists:customers,id'],
+            'invoice_year' => ['required'],
+            'invoice_month' => ['required'],
+            'invoice_day' => ['required'],
             'invoice_date' => ['required', 'date'],
 
             'items' => ['required', 'array', 'min:1'],
@@ -234,7 +337,10 @@ new class extends Component
             'customer_id.required' => 'انتخاب مشتری الزامی است.',
             'customer_id.exists' => 'مشتری انتخاب شده معتبر نیست.',
 
-            'invoice_date.required' => 'تاریخ فاکتور الزامی است.',
+            'invoice_year.required' => 'سال فاکتور الزامی است.',
+            'invoice_month.required' => 'ماه فاکتور الزامی است.',
+            'invoice_day.required' => 'روز فاکتور الزامی است.',
+            'invoice_date.required' => 'تاریخ فاکتور معتبر نیست.',
             'invoice_date.date' => 'فرمت تاریخ معتبر نیست.',
 
             'items.required' => 'حداقل یک آیتم لازم است.',
@@ -251,6 +357,7 @@ new class extends Component
 
     public function save()
     {
+        $this->syncInvoiceDateFromJalali();
         $this->calculateTotal();
         $this->validate();
 
@@ -326,6 +433,20 @@ new class extends Component
         $this->invoice_id = $invoice->id;
         $this->total_p = (float) $invoice->total_price;
         $this->invoice_date = $invoice->invoice_date;
+
+        if ($invoice->invoice_date) {
+            try {
+                $jDate = Jalalian::fromCarbon(\Carbon\Carbon::parse($invoice->invoice_date));
+                $this->invoice_year = (string) $jDate->getYear();
+                $this->invoice_month = (string) $jDate->getMonth();
+                $this->invoice_day = (string) $jDate->getDay();
+            } catch (\Throwable $e) {
+                $this->invoice_year = '';
+                $this->invoice_month = '';
+                $this->invoice_day = '';
+            }
+        }
+
         $this->customers_name = $invoice->customer->shop_name ?? '';
         $this->seller_name = trim(
             ($invoice->profile->first_name ?? '') . ' '
@@ -357,6 +478,7 @@ new class extends Component
 
     public function update()
     {
+        $this->syncInvoiceDateFromJalali();
         $this->calculateTotal();
         $this->validate();
 
@@ -487,6 +609,9 @@ new class extends Component
         $this->invoice_id = '';
         $this->total_p = 0;
         $this->invoice_date = '';
+        $this->invoice_year = '';
+        $this->invoice_month = '';
+        $this->invoice_day = '';
         $this->customers_name = '';
         $this->seller_name = '';
         $this->customer_id = '';

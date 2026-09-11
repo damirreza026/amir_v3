@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Morilog\Jalali\Jalalian;
 
 new class extends Component
 {
@@ -15,6 +16,7 @@ new class extends Component
     public $selected_month_id = null;
 
     public $print_month_id = null;
+    public $detail_month_id = null;
 
     public function mount(): void
     {
@@ -150,6 +152,19 @@ new class extends Component
                     $netSalary = $totalHours * 70000;
                 }
 
+                $rawIssuedAt = $paidRecord?->created_at ?? $approvedRecord?->created_at ?? $anyRecord?->created_at;
+                $jalaliIssuedAt = null;
+
+                if ($rawIssuedAt) {
+                    try {
+                        $jalaliIssuedAt = Jalalian::fromCarbon(
+                            \Illuminate\Support\Carbon::parse($rawIssuedAt)->timezone('Asia/Tehran')
+                        )->format('Y/m/d - H:i');
+                    } catch (\Throwable $e) {
+                        $jalaliIssuedAt = \Illuminate\Support\Carbon::parse($rawIssuedAt)->timezone('Asia/Tehran')->format('Y/m/d H:i');
+                    }
+                }
+
                 return (object) [
                     'id' => $month->id,
                     'month_id' => $month->month_id,
@@ -159,7 +174,8 @@ new class extends Component
                     'total_hours' => $totalHours,
                     'net_salary' => $netSalary,
                     'salary_id' => $paidRecord?->id ?? $approvedRecord?->id ?? $pendingRecord?->id ?? $anyRecord?->id,
-                    'issued_at' => $paidRecord?->created_at ?? $approvedRecord?->created_at ?? $anyRecord?->created_at,
+                    'issued_at' => $rawIssuedAt,
+                    'issued_at_jalali' => $jalaliIssuedAt,
                     'is_issued' => $isIssued,
                     'is_paid' => $isPaid,
                 ];
@@ -229,6 +245,18 @@ new class extends Component
         }
 
         $isPaid = $paidRecord !== null;
+        $rawIssuedAt = $paidRecord?->created_at ?? $approvedRecord?->created_at ?? $anyRecord?->created_at;
+        $jalaliIssuedAt = null;
+
+        if ($rawIssuedAt) {
+            try {
+                $jalaliIssuedAt = Jalalian::fromCarbon(
+                    \Illuminate\Support\Carbon::parse($rawIssuedAt)->timezone('Asia/Tehran')
+                )->format('Y/m/d - H:i');
+            } catch (\Throwable $e) {
+                $jalaliIssuedAt = \Illuminate\Support\Carbon::parse($rawIssuedAt)->timezone('Asia/Tehran')->format('Y/m/d H:i');
+            }
+        }
 
         return (object) [
             'month_name' => $month->month_name ?? 'ماه ' . $month->month,
@@ -236,15 +264,92 @@ new class extends Component
             'profile' => $this->profile,
             'total_hours' => $totalHours,
             'net_salary' => $netSalary,
-            'issued_at' => $paidRecord?->created_at ?? $approvedRecord?->created_at ?? $anyRecord?->created_at,
+            'issued_at' => $rawIssuedAt,
+            'issued_at_jalali' => $jalaliIssuedAt,
             'is_paid' => $isPaid,
         ];
+    }
+
+    #[Computed]
+    public function monthlyPerformanceDetails()
+    {
+        if (! $this->detail_month_id || ! $this->profile) {
+            return null;
+        }
+
+        $profileId = $this->profile->id;
+
+        $month = DB::table('payroll_months')
+            ->join('payroll_years', 'payroll_months.payroll_year_id', '=', 'payroll_years.id')
+            ->where('payroll_months.id', $this->detail_month_id)
+            ->select(
+                'payroll_months.id as month_id',
+                'payroll_months.month',
+                'payroll_months.month_name',
+                'payroll_years.year'
+            )
+            ->first();
+
+        if (! $month) {
+            return null;
+        }
+
+        $weeks = DB::table('payroll_weeks')
+            ->where('payroll_month_id', $this->detail_month_id)
+            ->orderBy('id')
+            ->get();
+
+        $salaries = Salary::query()
+            ->where('profile_id', $profileId)
+            ->where('payroll_month_id', $this->detail_month_id)
+            ->get()
+            ->keyBy('payroll_week_id');
+
+        $weekDetails = [];
+        $totalHours = 0;
+        $totalAmount = 0;
+
+        foreach ($weeks as $week) {
+            $salaryRecord = $salaries->get($week->id);
+            $hours = $salaryRecord ? (float) $salaryRecord->overtime_hours : 0;
+            $rate = $salaryRecord && (float) $salaryRecord->overtime_rate > 0
+                ? (float) $salaryRecord->overtime_rate
+                : 70000;
+            $amount = $salaryRecord && (float) $salaryRecord->net_salary > 0
+                ? (float) $salaryRecord->net_salary
+                : round($hours * $rate);
+
+            $totalHours += $hours;
+            $totalAmount += $amount;
+
+            $weekDetails[] = (object) [
+                'week_name' => $week->week_name ?? ('هفته ' . $week->id),
+                'hours' => $hours,
+                'rate' => $rate,
+                'amount' => $amount,
+                'status' => $salaryRecord?->status ?? 'ثبت نشده',
+            ];
+        }
+
+        return (object) [
+            'month_name' => $month->month_name ?? 'ماه ' . $month->month,
+            'year' => $month->year,
+            'profile' => $this->profile,
+            'total_hours' => $totalHours,
+            'total_amount' => $totalAmount,
+            'weeks' => $weekDetails,
+        ];
+    }
+
+    public function openPerformanceModal(int $monthId): void
+    {
+        $this->detail_month_id = $monthId;
+        \Flux\Flux::modal('performance-detail-modal')->show();
     }
 
     public function openPrintModal(int $monthId): void
     {
         $this->print_month_id = $monthId;
-
         \Flux\Flux::modal('print-salary-modal')->show();
     }
 

@@ -173,9 +173,28 @@
                 </div>
 
                 <div class="space-y-1">
-                    <span class="text-xs font-semibold text-zinc-600 dark:text-zinc-300">تاریخ صدور</span>
-                    <div class="text-base font-bold text-zinc-900 dark:text-zinc-100">
-                        {{ $invoice->invoice_date }}
+                    <span class="text-xs font-semibold text-zinc-600 dark:text-zinc-300">زمان صدور</span>
+                    <div class="flex flex-col">
+                        @php
+                            $dateSource = ($invoice->invoice_date && str_contains((string)$invoice->invoice_date, ':'))
+                                ? $invoice->invoice_date
+                                : ($invoice->created_at ?? $invoice->invoice_date);
+
+                            $jalaliDate = $dateSource
+                                ? \Morilog\Jalali\Jalalian::fromCarbon(\Carbon\Carbon::parse($dateSource)->setTimezone('Asia/Tehran'))
+                                : null;
+                        @endphp
+
+                        @if ($jalaliDate)
+                            <span class="text-base font-bold text-zinc-900 dark:text-zinc-100">
+                                {{ $jalaliDate->format('Y/m/d') }}
+                            </span>
+                            <span class="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                                ساعت {{ $jalaliDate->format('H:i') }}
+                            </span>
+                        @else
+                            <span class="text-base font-bold text-zinc-900 dark:text-zinc-100">---</span>
+                        @endif
                     </div>
                 </div>
 

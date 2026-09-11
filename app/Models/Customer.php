@@ -3,11 +3,13 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Customer extends Model
 {
     protected $fillable = [
+        'user_id',
         'shop_name',
         'phone',
         'address',
@@ -16,4 +18,9 @@ class Customer extends Model
     {
         return $this->hasMany(Invoice::class);
     }
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
 }

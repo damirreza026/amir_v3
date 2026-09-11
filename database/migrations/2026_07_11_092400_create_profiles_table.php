@@ -20,6 +20,9 @@ return new class extends Migration
             $table->string('phone', '11');
             $table->string('national_code', '10')->unique();
             $table->string('address', '100');
+            $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('updated_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->timestamp('last_modified_at')->nullable();
             $table->timestamps();
         });
     }

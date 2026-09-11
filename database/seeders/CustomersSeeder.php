@@ -14,9 +14,9 @@ class CustomersSeeder extends Seeder
     public function run(): void
     {
         Customer::create([
-            'shop_name' => 'Sonati',
+            'shop_name' => 'محلی',
             'phone' => '09175678912',
-            'address' => 'Jalan Raya',
+            'address' => 'شهر سعدآباد',
         ]);
     }
 }

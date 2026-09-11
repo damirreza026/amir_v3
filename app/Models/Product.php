@@ -16,5 +16,10 @@ class Product extends Model
     {
         return $this->hasMany(ProductBatch::class);
     }
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
 
 }

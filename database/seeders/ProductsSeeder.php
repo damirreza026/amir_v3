@@ -14,19 +14,19 @@ class ProductsSeeder extends Seeder
     {
         Product::create([
             'category_id' => 1,
-            'name' => 'Low-fat cows’ milk',
+            'name' => 'شیر کم چرب گاو',
         ]);
         Product::create([
             'category_id' => 1,
-            'name' => 'High-fat cows’ milk',
+            'name' => 'شیر پر چرب گاو',
         ]);
         Product::create([
             'category_id' => 1,
-            'name' => 'Low-fat goats’ milk',
+            'name' => 'شیر گاومیش',
         ]);
         Product::create([
             'category_id' => 1,
-            'name' => 'High-fat goats’ milk',
+            'name' => 'شیر بز',
         ]);
     }
 }

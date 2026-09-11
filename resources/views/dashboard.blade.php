@@ -2,13 +2,13 @@
 
     @php
         $user = auth()->user();
-        $profile = $user->profile;
-        $roleId = $profile?->role_id ?? 0;
+        $profile = $user?->profile;
+        $roleId = (int) ($profile?->role_id ?? 0);
 
         // ترکیب نام و نام خانوادگی از پروفایل، یا نام پیش‌فرض کاربر
         $firstName = $profile?->first_name ?? '';
         $lastName = $profile?->last_name ?? '';
-        $fullName = trim("{$firstName} {$lastName}") ?: $user->name;
+        $fullName = trim("{$firstName} {$lastName}") ?: ($user?->name ?? 'کاربر محترم');
 
         $roles = [
             1 => 'سوپر ادمین',
@@ -41,13 +41,25 @@
             ['label' => 'سال و ماه و هفته کاری', 'icon' => 'calendar', 'route' => 'year_s_a', 'roles' => [1, 2, 5], 'color' => 'from-orange-500 to-amber-600'],
         ];
 
-        $myLinks = collect($quickLinks)->filter(fn ($link) => in_array($roleId, $link['roles']));
+        $myLinks = collect($quickLinks)->filter(fn ($link) => in_array($roleId, $link['roles'], true));
+
+        // تبدیل تاریخ‌ها به شمسی با تایم‌زون تهران (سازگار با Carbon)
+        $todayJalali = \Morilog\Jalali\Jalalian::fromCarbon(\Carbon\Carbon::now('Asia/Tehran'))->format('%A %d %B %Y');
+
+        $createdAtJalali = $user?->created_at
+            ? \Morilog\Jalali\Jalalian::fromCarbon(\Carbon\Carbon::parse($user->created_at)->setTimezone('Asia/Tehran'))->format('%d %B %Y')
+            : '—';
+
+        $lastUpdated = $profile?->last_modified_at ?? $profile?->updated_at ?? $user?->updated_at;
+        $updatedAtJalali = $lastUpdated
+            ? \Morilog\Jalali\Jalalian::fromCarbon(\Carbon\Carbon::parse($lastUpdated)->setTimezone('Asia/Tehran'))->format('%d %B %Y')
+            : '—';
     @endphp
 
     <div class="flex h-full w-full flex-1 flex-col gap-6 rounded-xl">
 
         {{-- ─── بنر خوش‌آمد ─── --}}
-        <div class="relative overflow-hidden rounded-2xl bg-gradient-to-l from-indigo-600 via-violet-600 to-fuchsia-600 p-8 text-white shadow-xl shadow-indigo-500/20">
+        <div class="relative overflow-hidden rounded-2xl bg-linear-to-l from-indigo-600 via-violet-600 to-fuchsia-600 p-8 text-white shadow-xl shadow-indigo-500/20">
             <div class="pointer-events-none absolute -right-16 -top-16 size-52 rounded-full bg-white/10 blur-2xl"></div>
             <div class="pointer-events-none absolute -bottom-24 left-1/4 size-72 rounded-full bg-fuchsia-300/20 blur-3xl"></div>
 
@@ -60,7 +72,7 @@
                     </h1>
                     <p class="mt-3 max-w-xl text-sm leading-relaxed text-indigo-100/90">
                         امروز
-                        <span class="font-bold text-white">{{ now()->translatedFormat('l j F Y') }}</span>
+                        <span class="font-bold text-white">{{ $todayJalali }}</span>
                         است. امیدواریم روزی پر از موفقیت داشته باشید.
                     </p>
 
@@ -73,16 +85,16 @@
                 {{-- آواتار و مشخصات خلاصه --}}
                 <div class="flex items-center gap-4 rounded-2xl bg-white/10 p-4 ring-1 ring-white/20 backdrop-blur">
                     <div class="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-2xl font-black text-white ring-2 ring-white/30">
-                        {{ $user->initials() }}
+                        {{ method_exists($user, 'initials') ? $user->initials() : mb_substr($fullName, 0, 2) }}
                     </div>
                     <div class="grid">
                         <span class="text-base font-bold">{{ $fullName }}</span>
                         <span class="mt-1 flex items-center gap-1.5 text-xs text-indigo-100">
                             <flux:icon name="envelope" class="size-3.5" />
-                            {{ $user->email }}
+                            {{ $user?->email }}
                         </span>
                         @if (! empty($profile?->phone))
-                            <span class="mt-1 flex items-center gap-1.5 text-xs text-indigo-100">
+                            <span class="mt-1 flex items-center gap-1.5 text-xs text-indigo-100" dir="ltr">
                                 <flux:icon name="phone" class="size-3.5" />
                                 {{ $profile->phone }}
                             </span>
@@ -114,7 +126,7 @@
 
                     <div class="rounded-xl bg-neutral-50 p-4 dark:bg-zinc-800/60">
                         <dt class="text-xs text-neutral-500 dark:text-zinc-400">ایمیل</dt>
-                        <dd class="mt-1.5 break-all text-sm font-bold text-neutral-900 dark:text-white">{{ $user->email }}</dd>
+                        <dd class="mt-1.5 break-all text-sm font-bold text-neutral-900 dark:text-white">{{ $user?->email }}</dd>
                     </div>
 
                     <div class="rounded-xl bg-neutral-50 p-4 dark:bg-zinc-800/60">
@@ -173,13 +185,13 @@
                         <li class="flex items-center justify-between rounded-xl bg-neutral-50 px-4 py-3 dark:bg-zinc-800/60">
                             <span class="text-neutral-500 dark:text-zinc-400">تاریخ عضویت</span>
                             <span class="font-bold text-neutral-900 dark:text-white">
-                                {{ optional($user->created_at)->translatedFormat('j F Y') ?? '—' }}
+                                {{ $createdAtJalali }}
                             </span>
                         </li>
                         <li class="flex items-center justify-between rounded-xl bg-neutral-50 px-4 py-3 dark:bg-zinc-800/60">
                             <span class="text-neutral-500 dark:text-zinc-400">آخرین به‌روزرسانی</span>
                             <span class="font-bold text-neutral-900 dark:text-white">
-                                {{ optional($user->updated_at)->translatedFormat('j F Y') ?? '—' }}
+                                {{ $updatedAtJalali }}
                             </span>
                         </li>
                     </ul>

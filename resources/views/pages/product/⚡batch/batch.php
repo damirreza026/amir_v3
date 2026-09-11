@@ -1,13 +1,16 @@
 <?php
 
 use App\Models\Category;
+use App\Models\Product;
 use App\Models\ProductBatch;
 use Carbon\Carbon;
 use Flux\Flux;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Morilog\Jalali\Jalalian;
 
 new class extends Component
 {
@@ -19,6 +22,11 @@ new class extends Component
     public string $search_product = '';
 
     public string $search_employee = '';
+
+    // متغیرهای فیلتر تاریخ شمسی بالای جدول
+    public $selected_year = '';
+    public $selected_month = '';
+    public $selected_day = '';
 
     // اطلاعات فرم
     public string $product_name = '';
@@ -33,14 +41,20 @@ new class extends Component
 
     public $sale_price = '';
 
-    public $p_date = '';
+    // فیلدهای تاریخ تولید (تفکیک‌شده برای flux:select)
+    public $p_day = '';
+    public $p_month = '';
+    public $p_year = '';
 
-    public $ex_date = '';
+    // فیلدهای تاریخ انقضا (تفکیک‌شده برای flux:select)
+    public $ex_day = '';
+    public $ex_month = '';
+    public $ex_year = '';
 
     public $quantity = '';
 
     // مرتب‌سازی
-    public string $sortBy = 'expiry_date';
+    public string $sortBy = 'created_at';
 
     public string $sortDirection = 'desc';
 
@@ -50,6 +64,34 @@ new class extends Component
         $this->cat_id = $category->id;
         $this->u_id = auth()->user()?->profile?->id;
         $this->pro_id = $category->products()->value('id');
+    }
+
+    #[Computed]
+    public function persianMonths(): array
+    {
+        return [
+            1 => 'فروردین',
+            2 => 'اردیبهشت',
+            3 => 'خرداد',
+            4 => 'تیر',
+            5 => 'مرداد',
+            6 => 'شهریور',
+            7 => 'مهر',
+            8 => 'آبان',
+            9 => 'آذر',
+            10 => 'دی',
+            11 => 'بهمن',
+            12 => 'اسفند',
+        ];
+    }
+
+    #[Computed]
+    public function products()
+    {
+        return Product::query()
+            ->where('category_id', $this->category->id)
+            ->orderBy('name')
+            ->get();
     }
 
     public function updatedSearchProduct(): void
@@ -62,16 +104,114 @@ new class extends Component
         $this->resetPage();
     }
 
+    public function updatedSelectedYear(): void
+    {
+        $this->selected_month = '';
+        $this->selected_day = '';
+        $this->resetPage();
+    }
+
+    public function updatedSelectedMonth(): void
+    {
+        $this->selected_day = '';
+        $this->resetPage();
+    }
+
+    public function updatedSelectedDay(): void
+    {
+        $this->resetPage();
+    }
+
+    public function clearDateFilters(): void
+    {
+        $this->selected_year = '';
+        $this->selected_month = '';
+        $this->selected_day = '';
+        $this->resetPage();
+    }
+
     public function sort(string $column): void
     {
         if ($this->sortBy === $column) {
             $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
         } else {
             $this->sortBy = $column;
-            $this->sortDirection = 'asc';
+            $this->sortDirection = 'desc';
         }
 
         $this->resetPage();
+    }
+
+    #[Computed]
+    public function distinctJalaliDates(): Collection
+    {
+        return ProductBatch::query()
+            ->whereHas('product', function ($query) {
+                $query->where('category_id', $this->category->id);
+            })
+            ->whereNotNull('created_at')
+            ->select('created_at')
+            ->get()
+            ->map(function ($item) {
+                try {
+                    $carbonTehran = Carbon::parse($item->created_at)->setTimezone('Asia/Tehran');
+                    $jalali = Jalalian::fromCarbon($carbonTehran);
+
+                    return [
+                        'year' => (int) $jalali->format('Y'),
+                        'month' => (int) $jalali->format('m'),
+                        'day' => (int) $jalali->format('d'),
+                    ];
+                } catch (\Throwable $e) {
+                    return null;
+                }
+            })
+            ->filter()
+            ->values();
+    }
+
+    #[Computed]
+    public function availableYears(): array
+    {
+        return $this->distinctJalaliDates
+            ->pluck('year')
+            ->unique()
+            ->sortDesc()
+            ->values()
+            ->all();
+    }
+
+    #[Computed]
+    public function availableMonths(): array
+    {
+        if (empty($this->selected_year)) {
+            return [];
+        }
+
+        return $this->distinctJalaliDates
+            ->where('year', (int) $this->selected_year)
+            ->pluck('month')
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+    }
+
+    #[Computed]
+    public function availableDays(): array
+    {
+        if (empty($this->selected_year) || empty($this->selected_month)) {
+            return [];
+        }
+
+        return $this->distinctJalaliDates
+            ->where('year', (int) $this->selected_year)
+            ->where('month', (int) $this->selected_month)
+            ->pluck('day')
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
     }
 
     #[Computed]
@@ -80,7 +220,7 @@ new class extends Component
         return ProductBatch::query()
             ->with([
                 'product.category',
-                'profile',
+                'profile.user',
             ])
             ->whereHas('product', function ($query) {
                 $query->where('category_id', $this->category->id);
@@ -102,6 +242,36 @@ new class extends Component
                             ->orWhere(DB::raw("CONCAT(first_name, ' ', last_name)"), 'like', $term);
                     });
                 });
+            })
+            // فیلتر آبشاری تاریخ شمسی
+            ->when(!empty($this->selected_year), function ($query) {
+                $year = (int) $this->selected_year;
+
+                if (!empty($this->selected_month) && !empty($this->selected_day)) {
+                    $month = (int) $this->selected_month;
+                    $day = (int) $this->selected_day;
+
+                    $startMiladi = (new Jalalian($year, $month, $day, 0, 0, 0))->toCarbon('Asia/Tehran')->setTimezone('UTC');
+                    $endMiladi = (new Jalalian($year, $month, $day, 23, 59, 59))->toCarbon('Asia/Tehran')->setTimezone('UTC');
+
+                    $query->whereBetween('created_at', [$startMiladi, $endMiladi]);
+                } elseif (!empty($this->selected_month)) {
+                    $month = (int) $this->selected_month;
+                    $daysInMonth = $month <= 6 ? 31 : ($month <= 11 ? 30 : ((new Jalalian($year, 1, 1))->isLeapYear() ? 30 : 29));
+
+                    $startMiladi = (new Jalalian($year, $month, 1, 0, 0, 0))->toCarbon('Asia/Tehran')->setTimezone('UTC');
+                    $endMiladi = (new Jalalian($year, $month, $daysInMonth, 23, 59, 59))->toCarbon('Asia/Tehran')->setTimezone('UTC');
+
+                    $query->whereBetween('created_at', [$startMiladi, $endMiladi]);
+                } else {
+                    $lastMonth = 12;
+                    $lastDay = (new Jalalian($year, 1, 1))->isLeapYear() ? 30 : 29;
+
+                    $startMiladi = (new Jalalian($year, 1, 1, 0, 0, 0))->toCarbon('Asia/Tehran')->setTimezone('UTC');
+                    $endMiladi = (new Jalalian($year, $lastMonth, $lastDay, 23, 59, 59))->toCarbon('Asia/Tehran')->setTimezone('UTC');
+
+                    $query->whereBetween('created_at', [$startMiladi, $endMiladi]);
+                }
             })
             ->orderBy($this->sortBy, $this->sortDirection)
             ->paginate(15);
@@ -126,8 +296,31 @@ new class extends Component
             ],
             'sale_price' => ['required', 'numeric', 'min:0'],
 
-            'p_date' => ['required', 'date'],
-            'ex_date' => ['required', 'date', 'after_or_equal:p_date'],
+            'p_year' => ['required', 'numeric'],
+            'p_month' => ['required', 'numeric', 'between:1,12'],
+            'p_day' => ['required', 'numeric', 'between:1,31'],
+
+            'ex_year' => ['required', 'numeric'],
+            'ex_month' => ['required', 'numeric', 'between:1,12'],
+            'ex_day' => [
+                'required',
+                'numeric',
+                'between:1,31',
+                function ($attribute, $value, $fail) {
+                    try {
+                        if ($this->p_year && $this->p_month && $this->p_day && $this->ex_year && $this->ex_month && $this->ex_day) {
+                            $pCarbon = (new Jalalian((int)$this->p_year, (int)$this->p_month, (int)$this->p_day, 0, 0, 0))->toCarbon();
+                            $exCarbon = (new Jalalian((int)$this->ex_year, (int)$this->ex_month, (int)$this->ex_day, 0, 0, 0))->toCarbon();
+
+                            if ($exCarbon->lt($pCarbon)) {
+                                $fail('تاریخ انقضا باید برابر یا بعد از تاریخ تولید باشد.');
+                            }
+                        }
+                    } catch (\Throwable $e) {
+                        $fail('تاریخ انقضا یا تولید وارد شده نامعتبر است.');
+                    }
+                },
+            ],
 
             'quantity' => ['required', 'integer', 'min:'.$minimumQuantity],
         ];
@@ -143,12 +336,13 @@ new class extends Component
             'sale_price.numeric' => 'قیمت فروش باید عدد باشد.',
             'sale_price.min' => 'قیمت فروش نمی‌تواند منفی باشد.',
 
-            'p_date.required' => 'انتخاب تاریخ تولید الزامی است.',
-            'p_date.date' => 'تاریخ تولید معتبر نیست.',
+            'p_year.required' => 'انتخاب سال تولید الزامی است.',
+            'p_month.required' => 'انتخاب ماه تولید الزامی است.',
+            'p_day.required' => 'انتخاب روز تولید الزامی است.',
 
-            'ex_date.required' => 'انتخاب تاریخ انقضا الزامی است.',
-            'ex_date.date' => 'تاریخ انقضا معتبر نیست.',
-            'ex_date.after_or_equal' => 'تاریخ انقضا باید برابر یا بعد از تاریخ تولید باشد.',
+            'ex_year.required' => 'انتخاب سال انقضا الزامی است.',
+            'ex_month.required' => 'انتخاب ماه انقضا الزامی است.',
+            'ex_day.required' => 'انتخاب روز انقضا الزامی است.',
 
             'quantity.required' => 'وارد کردن تعداد الزامی است.',
             'quantity.integer' => 'تعداد باید یک عدد صحیح باشد.',
@@ -160,7 +354,18 @@ new class extends Component
     {
         $this->reset_data();
         $this->pro_id = $this->category->products()->value('id');
-        Flux::modal('save')->show();
+
+        // تنظیم تاریخ پیش‌فرض روز جاری
+        $now = Jalalian::now();
+        $this->p_year = (int) $now->getYear();
+        $this->p_month = (int) $now->getMonth();
+        $this->p_day = (int) $now->getDay();
+
+        $this->ex_year = (int) $now->getYear() + 1;
+        $this->ex_month = (int) $now->getMonth();
+        $this->ex_day = (int) $now->getDay();
+
+        Flux::modal('save-modal')->show();
     }
 
     public function reset_data(): void
@@ -170,8 +375,12 @@ new class extends Component
             'batch_id',
             'pro_id',
             'sale_price',
-            'p_date',
-            'ex_date',
+            'p_day',
+            'p_month',
+            'p_year',
+            'ex_day',
+            'ex_month',
+            'ex_year',
             'quantity',
         ]);
 
@@ -190,18 +399,28 @@ new class extends Component
                 $productBatch = new ProductBatch;
 
                 $productBatch->product_id = $this->pro_id;
-                $productBatch->profile_id = $this->u_id;
+                $productBatch->profile_id = auth()->user()?->profile?->id;
                 $productBatch->sale_price = $this->sale_price;
-                $productBatch->production_date = $this->p_date;
-                $productBatch->expiry_date = $this->ex_date;
+
+                // تبدیل تاریخ شمسی به میلادی
+                $productBatch->production_date = (new Jalalian((int)$this->p_year, (int)$this->p_month, (int)$this->p_day, 0, 0, 0))
+                    ->toCarbon()
+                    ->toDateString();
+
+                $productBatch->expiry_date = (new Jalalian((int)$this->ex_year, (int)$this->ex_month, (int)$this->ex_day, 0, 0, 0))
+                    ->toCarbon()
+                    ->toDateString();
+
                 $productBatch->quantity = $this->quantity;
 
                 $productBatch->save();
             });
 
             unset($this->productbatchs);
+            unset($this->distinctJalaliDates);
+
             session()->flash('success', 'موجودی جدید با موفقیت ثبت شد.');
-            Flux::modal('save')->close();
+            Flux::modal('save-modal')->close();
             $this->reset_data();
         } catch (\Throwable $e) {
             report($e);
@@ -226,15 +445,31 @@ new class extends Component
         $this->sale_price = $productBatch->sale_price;
         $this->quantity = $productBatch->quantity;
 
-        $this->p_date = $productBatch->production_date
-            ? Carbon::parse($productBatch->production_date)->format('Y-m-d')
-            : '';
+        // تفکیک تاریخ تولید شمسی به روز/ماه/سال
+        if ($productBatch->production_date) {
+            try {
+                $pJalali = Jalalian::fromCarbon(Carbon::parse($productBatch->production_date));
+                $this->p_year = (int) $pJalali->getYear();
+                $this->p_month = (int) $pJalali->getMonth();
+                $this->p_day = (int) $pJalali->getDay();
+            } catch (\Throwable $e) {
+                $this->p_year = $this->p_month = $this->p_day = '';
+            }
+        }
 
-        $this->ex_date = $productBatch->expiry_date
-            ? Carbon::parse($productBatch->expiry_date)->format('Y-m-d')
-            : '';
+        // تفکیک تاریخ انقضا شمسی به روز/ماه/سال
+        if ($productBatch->expiry_date) {
+            try {
+                $exJalali = Jalalian::fromCarbon(Carbon::parse($productBatch->expiry_date));
+                $this->ex_year = (int) $exJalali->getYear();
+                $this->ex_month = (int) $exJalali->getMonth();
+                $this->ex_day = (int) $exJalali->getDay();
+            } catch (\Throwable $e) {
+                $this->ex_year = $this->ex_month = $this->ex_day = '';
+            }
+        }
 
-        Flux::modal('edit-user')->show();
+        Flux::modal('edit-modal')->show();
     }
 
     public function update(): void
@@ -254,18 +489,27 @@ new class extends Component
                 );
 
                 $productBatch->product_id = $this->pro_id;
-                $productBatch->profile_id = $this->u_id;
                 $productBatch->sale_price = $this->sale_price;
-                $productBatch->production_date = $this->p_date;
-                $productBatch->expiry_date = $this->ex_date;
+
+                // تبدیل تاریخ شمسی به میلادی
+                $productBatch->production_date = (new Jalalian((int)$this->p_year, (int)$this->p_month, (int)$this->p_day, 0, 0, 0))
+                    ->toCarbon()
+                    ->toDateString();
+
+                $productBatch->expiry_date = (new Jalalian((int)$this->ex_year, (int)$this->ex_month, (int)$this->ex_day, 0, 0, 0))
+                    ->toCarbon()
+                    ->toDateString();
+
                 $productBatch->quantity = $this->quantity;
 
                 $productBatch->save();
             });
 
             unset($this->productbatchs);
+            unset($this->distinctJalaliDates);
+
             session()->flash('success', 'اطلاعات موجودی با موفقیت ویرایش شد.');
-            Flux::modal('edit-user')->close();
+            Flux::modal('edit-modal')->close();
             $this->reset_data();
         } catch (\Throwable $e) {
             report($e);
@@ -288,7 +532,7 @@ new class extends Component
         $this->batch_id = $productBatch->id;
         $this->product_name = $productBatch->product?->name ?? 'این محصول';
 
-        Flux::modal('delete-user')->show();
+        Flux::modal('delete-modal')->show();
     }
 
     public function delete(): void
@@ -306,8 +550,10 @@ new class extends Component
             });
 
             unset($this->productbatchs);
+            unset($this->distinctJalaliDates);
+
             session()->flash('success', 'موجودی با موفقیت حذف شد.');
-            Flux::modal('delete-user')->close();
+            Flux::modal('delete-modal')->close();
             $this->reset_data();
         } catch (\Throwable $e) {
             report($e);
@@ -315,8 +561,7 @@ new class extends Component
                 'error',
                 'خطایی هنگام حذف موجودی رخ داد. لطفاً دوباره تلاش کنید.'
             );
-            Flux::modal('delete-user')->close();
+            Flux::modal('delete-modal')->close();
         }
     }
 };
-

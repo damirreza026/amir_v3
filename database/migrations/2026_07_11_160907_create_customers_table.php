@@ -14,6 +14,7 @@ return new class extends Migration
         Schema::create('customers', function (Blueprint $table) {
             $table->id();
             $table->string('shop_name');
+            $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->string('phone', 11);
             $table->string('address');
             $table->timestamps();

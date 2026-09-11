@@ -4,21 +4,9 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Profile extends Model
 {
-    public function user(): BelongsTo
-    {
-        return $this->belongsTo(User::class);
-    }
-
-    public function roles(): BelongsToMany
-    {
-        return $this->belongsToMany(Role::class);
-    }
-
     protected $fillable = [
         'user_id',
         'first_name',
@@ -26,25 +14,41 @@ class Profile extends Model
         'phone',
         'national_code',
         'address',
-        'role_id', // این خط را اضافه کنید
-
+        'role_id',
+        'created_by',
+        'updated_by',
+        'last_modified_at',
     ];
 
-    public function invoices(): HasMany
+    /**
+     * Get the user that owns the profile.
+     */
+    public function user(): BelongsTo
     {
-        return $this->hasmeny(Invoice::class);
+        return $this->belongsTo(User::class);
     }
 
-    public function productbatchs(): HasMany
+    /**
+     * Get the role that owns the profile.
+     */
+    public function role(): BelongsTo
     {
-        return $this->hasMany(ProductBatch::class);
+        return $this->belongsTo(Role::class);
     }
 
-    public function salaries(): HasMany
+    /**
+     * Get the user who created the profile.
+     */
+    public function creator(): BelongsTo
     {
-        return $this->hasMany(
-            Salary::class,
-            'profile_id'
-        );
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * Get the user who last updated the profile.
+     */
+    public function updater(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'updated_by');
     }
 }

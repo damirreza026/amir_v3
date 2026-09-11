@@ -31,4 +31,9 @@ class ProductBatch extends Model
     {
         return $this->hasMany(InvoiceItem::class, 'product_batch_id');
     }
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
 }
