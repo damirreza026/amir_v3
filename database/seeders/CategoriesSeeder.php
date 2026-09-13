@@ -12,9 +12,9 @@ class CategoriesSeeder extends Seeder
      */
     public function run(): void
     {
-        Category::create(['name' => 'شیر']);
-        Category::create(['name' => 'ماست']);
-        Category::create(['name' => 'دوغ']);
-        Category::create(['name' => 'کره']);
+//        Category::create(['name' => 'شیر']);
+//        Category::create(['name' => 'ماست']);
+//        Category::create(['name' => 'دوغ']);
+//        Category::create(['name' => 'کره']);
     }
 }

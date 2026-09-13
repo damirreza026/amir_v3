@@ -13,12 +13,12 @@ class InvoiceItemSeeder extends Seeder
      */
     public function run(): void
     {
-        InvoiceItem::create([
-            'invoice_id' => 1,
-            'product_batch_id' => 1,
-            'quantity' => 10,
-            'price' => 1000000,       // 👈 فقط عدد خام (بدون کاما و toman)
-            'subtotal' => 10000000,   // 👈 حاصل ضرب تعداد در قیمت به صورت عدد خام
-        ]);
+//        InvoiceItem::create([
+//            'invoice_id' => 1,
+//            'product_batch_id' => 1,
+//            'quantity' => 10,
+//            'price' => 1000000,       // 👈 فقط عدد خام (بدون کاما و toman)
+//            'subtotal' => 10000000,   // 👈 حاصل ضرب تعداد در قیمت به صورت عدد خام
+//        ]);
     }
 }

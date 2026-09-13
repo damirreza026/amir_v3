@@ -13,10 +13,10 @@ class CustomersSeeder extends Seeder
      */
     public function run(): void
     {
-        Customer::create([
-            'shop_name' => 'محلی',
-            'phone' => '09175678912',
-            'address' => 'شهر سعدآباد',
-        ]);
+//        Customer::create([
+////            'shop_name' => 'محلی',
+////            'phone' => '09175678912',
+////            'address' => 'شهر سعدآباد',
+//        ]);
     }
 }

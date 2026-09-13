@@ -13,13 +13,13 @@ class ProductBatchesSeeder extends Seeder
      */
     public function run(): void
     {
-        ProductBatch::create([
-            'product_id' => 1,
-            'profile_id' => 1,
-            'sale_price' => '100 Toman',
-            'production_date' => '1405-04-20',
-            'expiry_date' => '1405-04-31',
-            'quantity' => '100',
-        ]);
+//        ProductBatch::create([
+//            'product_id' => 1,
+//            'profile_id' => 1,
+//            'sale_price' => '100 Toman',
+//            'production_date' => '1405-04-20',
+//            'expiry_date' => '1405-04-31',
+//            'quantity' => '100',
+//        ]);
     }
 }
