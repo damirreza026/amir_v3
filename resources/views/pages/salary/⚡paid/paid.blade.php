@@ -1,351 +1,419 @@
-<div>
-    <div class="mb-6">
-        <h1 class="text-xl font-bold">
-            فیش‌های حقوقی من
-        </h1>
+<div class="max-w-7xl mx-auto p-4 md:p-8 space-y-8" dir="rtl">
+
+    {{-- Header Section --}}
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden">
+        <div>
+            <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">
+                مدیریت حقوق و دستمزد
+            </h1>
+            <p class="text-slate-500 mt-1 text-sm">
+                مشاهده گزارش کارکرد، وضعیت فیش‌ها و دریافت نسخه چاپی
+            </p>
+        </div>
 
         @if ($this->profile)
-            <p class="mt-1 text-sm text-gray-500">
-                {{ $this->profile->first_name }}
-                {{ $this->profile->last_name }}
-            </p>
+            <div class="flex items-center gap-3 bg-white p-2 pr-4 pl-4 rounded-2xl shadow-sm border border-slate-200">
+                <div class="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-sm">
+                    {{ mb_substr($this->profile->first_name ?? '', 0, 1) }}
+                    {{ mb_substr($this->profile->last_name ?? '', 0, 1) }}
+                </div>
+                <div>
+                    <p class="text-xs text-slate-400 leading-none">
+                        پرسنل
+                    </p>
+                    <p class="text-sm font-black text-slate-800 mt-0.5">
+                        {{ $this->profile->first_name }} {{ $this->profile->last_name }}
+                    </p>
+                </div>
+            </div>
         @endif
     </div>
 
-    @if (! $this->profile)
-        <div class="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">
-            برای حساب کاربری شما پروفایل پرسنلی ثبت نشده است.
-        </div>
-    @else
-        {{-- فیلتر سال و ماه --}}
-        <div class="mb-5 grid grid-cols-1 gap-4 md:grid-cols-2">
-            <flux:select
-                wire:model.live="selected_year_id"
-                label="سال"
-            >
-                <flux:select.option value="">
-                    همه سال‌ها
+    {{-- Filters Section --}}
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm print:hidden">
+        <flux:select
+            wire:model.live="selected_year_id"
+            label="انتخاب سال مالی"
+            icon="calendar"
+        >
+            <flux:select.option value="">
+                همه سال‌ها
+            </flux:select.option>
+            @foreach ($this->years as $year)
+                <flux:select.option :value="$year->id">
+                    {{ $year->year }}
                 </flux:select.option>
+            @endforeach
+        </flux:select>
 
-                @foreach ($this->years as $year)
-                    <flux:select.option :value="$year->id">
-                        سال {{ $year->year }}
-                    </flux:select.option>
-                @endforeach
-            </flux:select>
-
-            <flux:select
-                wire:model.live="selected_month_id"
-                label="ماه"
-                :disabled="! $selected_year_id"
-            >
-                <flux:select.option value="">
-                    همه ماه‌ها
+        <flux:select
+            wire:model.live="selected_month_id"
+            label="انتخاب ماه"
+            icon="calendar-days"
+            :disabled="! $selected_year_id"
+        >
+            <flux:select.option value="">
+                همه ماه‌ها
+            </flux:select.option>
+            @foreach ($this->months as $m)
+                <flux:select.option :value="$m->id">
+                    {{ $m->month_name }}
                 </flux:select.option>
+            @endforeach
+        </flux:select>
+    </div>
 
-                @foreach ($this->months as $month)
-                    <flux:select.option :value="$month->id">
-                        {{ $month->month_name }}
-                    </flux:select.option>
-                @endforeach
-            </flux:select>
-        </div>
-
-        {{-- جدول فیش‌ها --}}
+    {{-- Table Section --}}
+    <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden print:hidden">
         <flux:table :paginate="$this->salaries">
             <flux:table.columns>
-                <flux:table.column>سال</flux:table.column>
-                <flux:table.column>ماه</flux:table.column>
-                <flux:table.column>مجموع ساعات کارکرد (کلیک برای جزئیات)</flux:table.column>
-                <flux:table.column>مبلغ فیش</flux:table.column>
-                <flux:table.column>تاریخ صدور (شمسی / تهران)</flux:table.column>
-                <flux:table.column>وضعیت</flux:table.column>
-                <flux:table.column>عملیات</flux:table.column>
+                <flux:table.column class="text-right font-bold">
+                    بازه زمانی
+                </flux:table.column>
+                <flux:table.column class="text-center font-bold">
+                    مجموع ساعت
+                </flux:table.column>
+                <flux:table.column class="text-center font-bold">
+                    مبلغ کارکرد
+                </flux:table.column>
+                <flux:table.column class="text-center font-bold">
+                    وضعیت فیش
+                </flux:table.column>
+                <flux:table.column class="text-left font-bold">
+                    عملیات
+                </flux:table.column>
             </flux:table.columns>
 
             <flux:table.rows>
-                @forelse ($this->salaries as $salary)
-                    <flux:table.row :key="$salary->id">
-                        <flux:table.cell class="whitespace-nowrap">
-                            سال {{ $salary->year }}
-                        </flux:table.cell>
+                @forelse ($this->salaries as $item)
+                    <flux:table.row :key="$item->month_id" class="hover:bg-slate-50 transition-colors">
 
-                        <flux:table.cell class="whitespace-nowrap">
-                            {{ $salary->month_name }}
-                        </flux:table.cell>
-
-                        {{-- دکمه مشاهده ریز عملکرد با کلیک بر روی ساعت --}}
-                        <flux:table.cell class="whitespace-nowrap">
-                            <button
-                                type="button"
-                                wire:click="openPerformanceModal({{ $salary->month_id }})"
-                                title="مشاهده عملکرد هفتگی و نرخ هر هفته"
-                                class="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 hover:border-blue-300"
-                            >
-                                <span>{{ number_format((float) $salary->total_hours, 1) }} ساعت</span>
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-3.5 opacity-70">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
-                                </svg>
-                            </button>
-                        </flux:table.cell>
-
-                        <flux:table.cell class="whitespace-nowrap">
-                            @if ($salary->is_paid || $salary->is_issued)
-                                <span class="font-bold text-green-700">
-                                    {{ number_format((float) $salary->net_salary) }}
+                        {{-- Month & Year --}}
+                        <flux:table.cell>
+                            <div class="flex flex-col">
+                                <span class="font-bold text-slate-800">
+                                    {{ $item->month_name }}
                                 </span>
-                                <span class="text-xs text-gray-500">
-                                    ریال
+                                <span class="text-xs text-slate-400">
+                                    سال مالی {{ $item->year }}
                                 </span>
-                            @else
-                                <span class="text-sm text-gray-400">---</span>
-                            @endif
+                            </div>
                         </flux:table.cell>
 
-                        <flux:table.cell class="whitespace-nowrap text-sm text-gray-600">
-                            @if ($salary->issued_at_jalali)
-                                <span class="font-mono text-xs">{{ $salary->issued_at_jalali }}</span>
-                            @else
-                                ---
-                            @endif
+                        {{-- Total Hours --}}
+                        <flux:table.cell class="text-center">
+                            <span class="px-3 py-1 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-full text-xs font-bold">
+                                {{ number_format($item->total_hours, 1) }} ساعت
+                            </span>
                         </flux:table.cell>
 
-                        <flux:table.cell class="whitespace-nowrap">
-                            @if ($salary->is_paid)
-                                <span class="inline-block rounded-md bg-blue-100 px-2 py-1 text-xs text-blue-700">
+                        {{-- Net Salary --}}
+                        <flux:table.cell class="text-center font-bold text-emerald-600">
+                            {{ number_format($item->net_salary) }}
+                            <span class="text-xs text-slate-400 font-normal">ریال</span>
+                        </flux:table.cell>
+
+                        {{-- Status --}}
+                        <flux:table.cell class="text-center">
+                            @if ($item->status === 'paid')
+                                <span class="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full">
+                                    <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
                                     پرداخت شده
                                 </span>
-                            @elseif ($salary->is_issued)
-                                <span class="inline-block rounded-md bg-green-100 px-2 py-1 text-xs text-green-700">
+                            @elseif ($item->status === 'issued')
+                                <span class="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-3 py-1 rounded-full">
+                                    <span class="w-2 h-2 rounded-full bg-blue-500"></span>
                                     فیش صادر شده
                                 </span>
                             @else
-                                <span class="inline-block rounded-md bg-amber-100 px-2 py-1 text-xs text-amber-700">
-                                    در انتظار صدور
+                                <span class="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full">
+                                    <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+                                    در جریان ثبت
                                 </span>
                             @endif
                         </flux:table.cell>
 
-                        <flux:table.cell class="whitespace-nowrap text-center">
-                            @if ($salary->is_paid || $salary->is_issued)
+                        {{-- Actions --}}
+                        <flux:table.cell class="text-left">
+                            <div class="flex justify-end gap-2">
                                 <flux:button
-                                    type="button"
-                                    variant="primary"
                                     size="sm"
-                                    wire:click="openPrintModal({{ $salary->month_id }})"
-                                >
-                                    <svg class="inline-block size-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0 1 10.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0 .229 2.523a1.125 1.125 0 0 1-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0 0 21 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 0 0-1.913-.247M6.34 18H5.25A2.25 2.25 0 0 1 3 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 0 1 1.913-.247m10.5 0a48.536 48.536 0 0 0-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5Zm-3 0h.008v.008H15V10.5Z" />
-                                    </svg>
-                                    <span class="ms-1">پرینت فیش</span>
-                                </flux:button>
-                            @else
-                                <span class="text-xs text-gray-400">
-                                    ---
-                                </span>
-                            @endif
+                                    variant="subtle"
+                                    icon="chart-bar"
+                                    title="ریز کارکرد هفتگی"
+                                    wire:click="openPerformanceModal({{ $item->month_id }})"
+                                />
+
+                                @if ($item->status === 'paid' || $item->status === 'issued')
+                                    <flux:button
+                                        size="sm"
+                                        variant="subtle"
+                                        icon="printer"
+                                        title="چاپ فیش حقوقی"
+                                        wire:click="openPrintModal({{ $item->month_id }})"
+                                    />
+                                @endif
+                            </div>
                         </flux:table.cell>
+
                     </flux:table.row>
                 @empty
                     <flux:table.row>
-                        <flux:table.cell
-                            colspan="7"
-                            class="py-8 text-center text-gray-500"
-                        >
-                            هیچ فیش حقوقی برای نمایش وجود ندارد.
+                        <flux:table.cell colspan="5" class="text-center py-12 text-slate-400 text-sm font-medium">
+                            هیچ اطلاعات حقوق و دستمزدی برای این بازه یافت نشد.
                         </flux:table.cell>
                     </flux:table.row>
                 @endforelse
             </flux:table.rows>
         </flux:table>
+    </div>
 
-        {{-- مودال مشاهده ریز کارکرد و عملکرد ماهانه و هفتگی --}}
-        <flux:modal name="performance-detail-modal" class="w-full max-w-2xl">
+    {{-- Performance Detail Modal --}}
+    <flux:modal name="performance-detail-modal" class="w-full max-w-2xl">
+        @if ($this->weeklyDetails)
             <div class="space-y-6">
-                @if ($this->monthlyPerformanceDetails)
+                <div class="flex justify-between items-center border-b pb-4">
                     <div>
-                        <flux:heading size="lg">
-                            ریز عملکرد و ساعات کارکرد ماهانه
+                        <flux:heading size="lg" class="font-black">
+                            ریز کارکرد ماه {{ $this->weeklyDetails->month_name }}
                         </flux:heading>
-                        <flux:text class="mt-1">
-                            {{ $this->monthlyPerformanceDetails->month_name }} سال {{ $this->monthlyPerformanceDetails->year }}
+                        <flux:text class="text-xs text-slate-500 mt-0.5">
+                            تفکیک ساعات، نرخ ساعتی و کارکرد هر هفته
                         </flux:text>
                     </div>
+                </div>
 
-                    <div class="overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-700">
-                        <table class="min-w-full divide-y divide-zinc-200 text-sm dark:divide-zinc-700">
-                            <thead class="bg-zinc-50 dark:bg-zinc-800">
-                            <tr>
-                                <th class="px-4 py-3 text-right font-medium">عنوان هفته</th>
-                                <th class="px-4 py-3 text-center font-medium">ساعت کارکرد</th>
-                                <th class="px-4 py-3 text-center font-medium">نرخ ساعتی</th>
-                                <th class="px-4 py-3 text-center font-medium">مبلغ هفته</th>
-                            </tr>
-                            </thead>
-                            <tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">
-                            @forelse ($this->monthlyPerformanceDetails->weeks as $weekRow)
-                                <tr>
-                                    <td class="px-4 py-3 font-medium text-zinc-900 dark:text-zinc-100">
-                                        {{ $weekRow->week_name }}
-                                    </td>
-                                    <td class="px-4 py-3 text-center font-semibold text-blue-600">
-                                        {{ number_format($weekRow->hours, 2) }} ساعت
-                                    </td>
-                                    <td class="px-4 py-3 text-center text-zinc-600 dark:text-zinc-300">
-                                        {{ number_format($weekRow->rate) }} ریال
-                                    </td>
-                                    <td class="px-4 py-3 text-center font-semibold text-green-700 dark:text-green-400">
-                                        {{ number_format($weekRow->amount) }} ریال
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="4" class="px-4 py-6 text-center text-zinc-500">
-                                        اطلاعاتی برای این ماه ثبت نشده است.
-                                    </td>
-                                </tr>
-                            @endforelse
-                            </tbody>
-                            <tfoot class="bg-zinc-100 dark:bg-zinc-800/80 font-bold">
-                            <tr>
-                                <td class="px-4 py-3 text-right">مجموع کل:</td>
-                                <td class="px-4 py-3 text-center text-blue-700">
-                                    {{ number_format($this->monthlyPerformanceDetails->total_hours, 2) }} ساعت
-                                </td>
-                                <td class="px-4 py-3 text-center text-zinc-500">---</td>
-                                <td class="px-4 py-3 text-center text-green-700">
-                                    {{ number_format($this->monthlyPerformanceDetails->total_amount) }} ریال
-                                </td>
-                            </tr>
-                            </tfoot>
-                        </table>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="bg-indigo-50 border border-indigo-100 p-4 rounded-2xl">
+                        <p class="text-xs font-bold text-indigo-600 mb-1">
+                            مجموع ساعات کارکرد
+                        </p>
+                        <p class="text-2xl font-black text-indigo-950">
+                            {{ number_format($this->weeklyDetails->total_hours, 1) }}
+                            <span class="text-sm font-normal">ساعت</span>
+                        </p>
                     </div>
-                @else
-                    <p class="text-center text-sm text-zinc-500">
-                        اطلاعاتی برای نمایش وجود ندارد.
-                    </p>
-                @endif
 
-                <div class="flex justify-end">
+                    <div class="bg-emerald-50 border border-emerald-100 p-4 rounded-2xl">
+                        <p class="text-xs font-bold text-emerald-600 mb-1">
+                            مجموع کارکرد ماه
+                        </p>
+                        <p class="text-2xl font-black text-emerald-950">
+                            {{ number_format($this->weeklyDetails->total_amount) }}
+                            <span class="text-sm font-normal">ریال</span>
+                        </p>
+                    </div>
+                </div>
+
+                <div class="space-y-3">
+                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                        عملکرد به تفکیک هفته‌ها
+                    </h3>
+
+                    @forelse ($this->weeklyDetails->weeks as $w)
+                        <div class="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                            <div class="flex flex-col">
+                                <span class="font-bold text-slate-800 text-sm">
+                                    {{ $w->week_name }}
+                                </span>
+                                <span class="text-xs text-slate-500 mt-1">
+                                    نرخ هر ساعت: {{ number_format($w->rate) }} ریال
+                                </span>
+                            </div>
+
+                            <div class="text-left">
+                                <div class="text-sm font-black text-slate-800">
+                                    {{ number_format($w->hours, 1) }} ساعت
+                                </div>
+                                <div class="text-xs text-emerald-600 font-bold mt-1">
+                                    {{ number_format($w->amount) }} ریال
+                                </div>
+                            </div>
+                        </div>
+                    @empty
+                        <p class="text-center text-xs text-slate-400 py-4">
+                            هفته‌ای ثبت نشده است.
+                        </p>
+                    @endforelse
+                </div>
+
+                <div class="flex justify-end pt-2 border-t">
                     <flux:modal.close>
-                        <flux:button type="button" variant="ghost">
+                        <flux:button variant="ghost" class="font-bold">
                             بستن
                         </flux:button>
                     </flux:modal.close>
                 </div>
             </div>
-        </flux:modal>
+        @endif
+    </flux:modal>
 
-        {{-- مودال مشاهده و پرینت فیش --}}
-        <flux:modal name="print-salary-modal" class="w-full max-w-3xl">
+    {{-- Print Salary Modal --}}
+    <flux:modal name="print-salary-modal" class="w-full max-w-2xl">
+        @if ($this->printableSalary)
+
+            {{-- Print Styles --}}
+
+
             <div class="space-y-6">
-                @if ($this->printableSalary)
-                    <div class="space-y-6 rounded-xl border border-zinc-200 bg-white p-6">
-                        {{-- سربرگ فیش --}}
-                        <div class="flex flex-col items-center gap-2 border-b border-zinc-200 pb-4 text-center">
-                            <h2 class="text-xl font-bold text-zinc-900">
-                                فیش حقوقی
-                            </h2>
 
-                            <p class="text-sm text-zinc-600">
-                                {{ $this->printableSalary->month_name }}
-                                سال {{ $this->printableSalary->year }}
-                            </p>
+                {{-- Printable Area --}}
+                <div
+                    id="printable-salary-area"
+                    class="bg-white rounded-2xl border border-slate-300 overflow-hidden text-slate-900"
+                    dir="rtl"
+                >
 
-                            @if ($this->printableSalary->is_paid)
-                                <span class="inline-block rounded-md bg-blue-100 px-2 py-1 text-xs text-blue-700">
-                                    پرداخت شده
-                                </span>
-                            @else
-                                <span class="inline-block rounded-md bg-amber-100 px-2 py-1 text-xs text-amber-700">
-                                    هنوز پرداخت نشده است
-                                </span>
-                            @endif
+                    {{-- Letterhead --}}
+                    <div class="relative border-b-2 border-slate-800 px-8 py-5 flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 rounded-xl bg-slate-900 text-white flex items-center justify-center text-lg font-black">
+                                ف
+                            </div>
+                            <div>
+                                <p class="text-lg font-black tracking-tight">
+                                    فیش حقوق و دستمزد
+                                </p>
+                                <p class="text-[11px] text-slate-500 mt-0.5">
+                                    سامانه مدیریت منابع انسانی و حقوق و دستمزد
+                                </p>
+                            </div>
                         </div>
 
-                        {{-- مشخصات پرسنل --}}
-                        <div class="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
-                            <div>
-                                <span class="text-zinc-500">نام و نام خانوادگی:</span>
-                                <strong class="text-zinc-900">
-                                    {{ trim(($this->printableSalary->profile->first_name ?? '') . ' ' . ($this->printableSalary->profile->last_name ?? '')) }}
+                        <div class="text-left">
+                            <p class="text-[10px] text-slate-400">شماره سند</p>
+                            <p class="text-sm font-black font-mono">
+                                {{ str_pad($this->print_month_id ?? 0, 5, '0', STR_PAD_LEFT) }}
+                            </p>
+                        </div>
+                    </div>
+
+
+                    {{-- Employee Info Grid --}}
+                    <div class="px-8 py-5">
+                        <div class="grid grid-cols-2 gap-x-8 gap-y-4 text-sm">
+
+                            <div class="flex justify-between border-b border-dashed border-slate-200 pb-2">
+                                <span class="text-slate-500">نام و نام خانوادگی:</span>
+                                <strong class="text-slate-900">
+                                    {{ $this->printableSalary->profile->first_name ?? '' }}
+                                    {{ $this->printableSalary->profile->last_name ?? '' }}
                                 </strong>
                             </div>
 
-                            <div>
-                                <span class="text-zinc-500">کد پرسنلی:</span>
-                                <strong class="text-zinc-900">
-                                    {{ $this->printableSalary->profile->id }}
+                            <div class="flex justify-between border-b border-dashed border-slate-200 pb-2">
+                                <span class="text-slate-500">کد پرسنلی:</span>
+                                <strong class="text-slate-900 font-mono">
+                                    {{ auth()->id() }}
                                 </strong>
                             </div>
 
-                            <div>
-                                <span class="text-zinc-500">مجموع ساعات کارکرد:</span>
-                                <strong class="text-blue-700">
-                                    {{ number_format((float) $this->printableSalary->total_hours, 2) }}
+                            <div class="flex justify-between border-b border-dashed border-slate-200 pb-2">
+                                <span class="text-slate-500">کد ملی:</span>
+                                <strong class="text-slate-900 font-mono tracking-widest">
+                                    {{ $this->printableSalary->profile->national_code ?? '---' }}
+                                </strong>
+                            </div>
+
+                            <div class="flex justify-between border-b border-dashed border-slate-200 pb-2">
+                                <span class="text-slate-500">مجموع کارکرد:</span>
+                                <strong class="text-slate-900">
+                                    {{ number_format($this->printableSalary->total_hours, 1) }}
                                     ساعت
                                 </strong>
                             </div>
 
-                            <div>
-                                <span class="text-zinc-500">مبلغ خالص حقوق:</span>
-                                <strong class="text-green-700">
-                                    {{ number_format((float) $this->printableSalary->net_salary) }}
-                                    ریال
-                                </strong>
-                            </div>
-                        </div>
-
-                        {{-- امضای شرکت --}}
-                        <div class="mt-6 flex items-end justify-between border-t border-zinc-200 pt-4">
-                            <div class="text-center">
-                                <p class="text-sm text-zinc-500">مهر و امضای شرکت</p>
-                                <div class="mt-10 h-12 w-40 border-b border-zinc-400"></div>
+                            <div class="flex justify-between border-b border-dashed border-slate-200 pb-2">
+                                <span class="text-slate-500">وضعیت پرداخت:</span>
+                                <span class="font-bold text-slate-900">
+                                    {{ $this->printableSalary->status }}
+                                </span>
                             </div>
 
-                            <div class="text-center text-xs text-zinc-500">
-                                تاریخ صدور:
-                                @if ($this->printableSalary->issued_at_jalali)
-                                    <span class="font-mono">{{ $this->printableSalary->issued_at_jalali }}</span>
-                                @else
-                                    ---
-                                @endif
+                            <div class="flex justify-between border-b border-dashed border-slate-200 pb-2">
+                                <span class="text-slate-500">واحد پرداخت:</span>
+                                <span class="font-bold text-slate-900">ریال</span>
                             </div>
+
                         </div>
+
+
+                        {{-- Net Salary Highlight --}}
+                        <div class="mt-6 flex items-center justify-between bg-slate-900 text-white px-5 py-4 rounded-xl">
+                            <span class="text-sm font-bold tracking-wide">
+                                خالص پرداختی
+                            </span>
+                            <span class="text-2xl font-black font-mono">
+                                {{ number_format($this->printableSalary->net_salary) }}
+                                <span class="text-xs font-normal opacity-70">ریال</span>
+                            </span>
+                        </div>
+
+
+                        {{-- Amount In Words Note --}}
+                        <p class="mt-3 text-[11px] text-slate-400 text-left" dir="ltr">
+                            This payslip is generated electronically by the payroll system.
+                        </p>
                     </div>
-                @else
-                    <p class="text-center text-sm text-zinc-500">
-                        فیشی برای نمایش وجود ندارد.
-                    </p>
-                @endif
 
-                {{-- دکمه‌های پایین مودال --}}
-                <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+
+                    {{-- Signatures --}}
+                    <div class="border-t-2 border-slate-800 px-8 py-6 grid grid-cols-3 gap-6 text-center text-sm">
+
+                        <div>
+                            <p class="font-bold text-slate-700 mb-8">امضای کارمند</p>
+                            <div class="border-t border-slate-400 mx-4 pt-1">
+                                <span class="text-[10px] text-slate-400">نام و امضا</span>
+                            </div>
+                        </div>
+
+                        <div>
+                            <p class="font-bold text-slate-700 mb-8">امضای مدیر واحد</p>
+                            <div class="border-t border-slate-400 mx-4 pt-1">
+                                <span class="text-[10px] text-slate-400">تأیید کارکرد</span>
+                            </div>
+                        </div>
+
+                        <div>
+                            <p class="font-bold text-slate-700 mb-8">مهر و امضای شرکت</p>
+                            <div class="border-t border-slate-400 mx-4 pt-1">
+                                <span class="text-[10px] text-slate-400">مالی / منابع انسانی</span>
+                            </div>
+                        </div>
+
+                    </div>
+
+
+                    {{-- Footer --}}
+                    <div class="bg-slate-50 border-t border-slate-200 px-8 py-2.5 flex justify-between text-[10px] text-slate-400">
+                        <span>این فیش به‌صورت سیستمی صادر شده است</span>
+                        <span>نسخه قابل چاپ</span>
+                    </div>
+
+                </div>
+
+
+                {{-- Modal Actions --}}
+                <div class="flex gap-2 justify-end border-t pt-4 print:hidden">
                     <flux:modal.close>
-                        <flux:button type="button" variant="ghost">
-                            بستن
+                        <flux:button variant="ghost" class="font-bold">
+                            انصراف
                         </flux:button>
                     </flux:modal.close>
 
                     <flux:button
-                        type="button"
                         variant="primary"
+                        icon="printer"
+                        class="font-bold px-6"
                         onclick="window.print()"
                     >
-                        <svg class="inline-block size-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0 1 10.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0 .229 2.523a1.125 1.125 0 0 1-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0 0 21 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 0 0-1.913-.247M6.34 18H5.25A2.25 2.25 0 0 1 3 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 0 1 1.913-.247m10.5 0a48.536 48.536 0 0 0-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5Zm-3 0h.008v.008H15V10.5Z" />
-                        </svg>
-                        <span class="ms-1">پرینت فیش</span>
+                        چاپ فیش حقوقی
                     </flux:button>
                 </div>
+
             </div>
-        </flux:modal>
-    @endif
-    <a
-        href="{{ URL::signedRoute('my_salary') }}"
-        class="inline-block rounded-lg !bg-blue-600 px-4 py-2 !text-white no-underline transition hover:!bg-blue-700"
-        style="background-color: #2563eb !important; color: #ffffff !important;"
-    >
-        برگشت
-    </a>
+
+        @endif
+    </flux:modal>
+
 </div>

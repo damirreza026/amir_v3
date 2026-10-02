@@ -4,6 +4,7 @@ namespace App\Livewire\Salary;
 
 use App\Models\Month;
 use App\Models\Year;
+use Flux\Flux;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
@@ -14,10 +15,13 @@ new class extends Component
     use WithPagination;
 
     public $year = '';
+
     public $year_id = null;
+
     public $search = '';
 
     public $sortBy = 'year';
+
     public $sortDirection = 'desc';
 
     protected $persianMonths = [
@@ -61,7 +65,7 @@ new class extends Component
     public function openAddModal()
     {
         $this->reset_data();
-        \Flux\Flux::modal('add-year')->show();
+        Flux::modal('add-year')->show();
     }
 
     #[Computed]
@@ -69,8 +73,8 @@ new class extends Component
     {
         $query = Year::query();
 
-        if (!empty(trim($this->search))) {
-            $query->where('year', 'like', '%' . trim($this->search) . '%');
+        if (! empty(trim($this->search))) {
+            $query->where('year', 'like', '%'.trim($this->search).'%');
         }
 
         return $query
@@ -84,37 +88,58 @@ new class extends Component
             'year' => ['required', 'digits:4', 'unique:payroll_years,year'],
         ], [
             'year.required' => 'وارد کردن سال الزامی است.',
-            'year.digits'   => 'سال باید یک عدد ۴ رقمی باشد (مثلاً ۱۴۰۳).',
-            'year.unique'   => 'این سال مالی قبلاً ثبت شده است.',
+            'year.digits' => 'سال باید یک عدد ۴ رقمی باشد (مثلاً ۱۴۰۳).',
+            'year.unique' => 'این سال مالی قبلاً ثبت شده است.',
         ]);
 
         try {
             DB::transaction(function () {
+                // ۱. ایجاد سال مالی
                 $yearRecord = Year::create([
                     'year' => (int) $this->year,
                 ]);
 
-                $monthsData = [];
-                foreach ($this->persianMonths as $month) {
-                    $monthsData[] = [
+                foreach ($this->persianMonths as $pMonth) {
+                    // ۲. ایجاد ماه
+                    $monthRecord = Month::create([
                         'payroll_year_id' => $yearRecord->id,
-                        'month'           => $month['number'],
-                        'month_name'      => $month['name'],
-                        'created_at'      => now(),
-                        'updated_at'      => now(),
-                    ];
-                }
+                        'month' => $pMonth['number'],
+                        'month_name' => $pMonth['name'],
+                    ]);
 
-                Month::insert($monthsData);
+                    // ۳. محاسبه تعداد هفته (۶ ماه اول ۵ هفته، ۶ ماه دوم ۴ هفته)
+                    $weekCount = ($pMonth['number'] <= 6) ? 5 : 4;
+
+                    $weeksData = [];
+                    for ($i = 1; $i <= $weekCount; $i++) {
+                        $weeksData[] = [
+                            'payroll_month_id' => $monthRecord->id,
+                            'week' => $i,
+                            'week_name' => 'هفته '.$this->getPersianWeekName($i),
+                            'created_at' => now(),
+                            'updated_at' => now(),
+                        ];
+                    }
+
+                    // ۴. درج دسته‌جمعی هفته‌ها برای این ماه
+                    DB::table('payroll_weeks')->insert($weeksData);
+                }
             });
 
-            session()->flash('success', 'سال مالی جدید همراه با ۱۲ ماه با موفقیت ایجاد شد.');
-            \Flux\Flux::modal('add-year')->close();
+            session()->flash('success', 'سال مالی، ۱۲ ماه و تمامی هفته‌ها (۶ ماه اول ۵ هفته، ۶ ماه دوم ۴ هفته) با موفقیت ایجاد شدند.');
+            Flux::modal('add-year')->close();
             $this->reset_data();
 
         } catch (\Throwable $e) {
-            $this->addError('save_error', 'خطایی در ثبت سال رخ داد: ' . $e->getMessage());
+            $this->addError('save_error', 'خطایی در ثبت سال رخ داد: '.$e->getMessage());
         }
+    }
+
+    private function getPersianWeekName($number)
+    {
+        $names = [1 => 'اول', 2 => 'دوم', 3 => 'سوم', 4 => 'چهارم', 5 => 'پنجم'];
+
+        return $names[$number] ?? $number;
     }
 
     public function delete_form(int $yearId)
@@ -123,24 +148,28 @@ new class extends Component
         $this->year_id = $yearRecord->id;
         $this->year = (string) $yearRecord->year;
 
-        \Flux\Flux::modal('delete-year')->show();
+        Flux::modal('delete-year')->show();
     }
 
     public function delete()
     {
         try {
             DB::transaction(function () {
+                // ابتدا هفته‌ها باید حذف شوند (اگر کلید خارجی Restrict باشد)
+                $monthIds = Month::where('payroll_year_id', $this->year_id)->pluck('id');
+                DB::table('payroll_weeks')->whereIn('payroll_month_id', $monthIds)->delete();
+
                 Month::where('payroll_year_id', $this->year_id)->delete();
                 Year::destroy($this->year_id);
             });
 
-            session()->flash('success', 'سال مالی و ماه‌های مرتبط با آن حذف گردید.');
-            \Flux\Flux::modal('delete-year')->close();
+            session()->flash('success', 'سال مالی، ماه‌ها و تمامی هفته‌های مرتبط با آن حذف گردید.');
+            Flux::modal('delete-year')->close();
             $this->reset_data();
 
         } catch (\Throwable $e) {
-            session()->flash('error', 'خطا در حذف سال مالی: ' . $e->getMessage());
-            \Flux\Flux::modal('delete-year')->close();
+            session()->flash('error', 'خطا در حذف سال مالی: '.$e->getMessage());
+            Flux::modal('delete-year')->close();
         }
     }
 };

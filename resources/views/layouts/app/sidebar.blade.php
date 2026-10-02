@@ -1,6 +1,7 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="dark" dir="rtl">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" dir="rtl">
 <head>
+    @fluxAppearance
     @include('partials.head')
 
     <style>

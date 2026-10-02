@@ -33,6 +33,10 @@ return new class extends Migration
             $table->decimal('base_salary', 15, 2)
                 ->default(0);
 
+            // اضافه شدن فیلد نرخ ساعتی
+            $table->decimal('hourly_rate', 15, 2)
+                ->default(0);
+
             $table->decimal('overtime_hours', 8, 2)
                 ->default(0);
 

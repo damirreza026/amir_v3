@@ -1,5 +1,7 @@
 <?php
 
+namespace App\Livewire\Salary;
+
 use App\Models\Month;
 use App\Models\Profile;
 use App\Models\Salary;
@@ -16,7 +18,6 @@ new class extends Component
     public $selected_month_id = null;
     public $selected_week_id = null;
 
-    public $hourly_rate = 70000;
     public $search = '';
 
     public $salary_id = null;
@@ -24,7 +25,9 @@ new class extends Component
     public $profile_name = '';
     public $is_record_locked = false;
 
+    // متغیرهای فرم ثبت هفته
     public $modal_total_hours = 0.0;
+    public $modal_hourly_rate = 70000;
     public $total_salary = 0;
 
     public function mount(?Year $year = null): void
@@ -60,7 +63,7 @@ new class extends Component
         unset($this->currentMonthData);
     }
 
-    public function updatedHourlyRate(): void
+    public function updatedModalHourlyRate(): void
     {
         $this->recalculateSalary();
     }
@@ -88,7 +91,6 @@ new class extends Component
     {
         if (! $this->selected_month_id) {
             $this->selected_week_id = null;
-
             return;
         }
 
@@ -100,15 +102,8 @@ new class extends Component
 
     private function recalculateSalary(): void
     {
-        $this->total_salary = $this->calculateSalary(
-            (float) $this->modal_total_hours
-        );
-    }
-
-    private function calculateSalary(float $hours): int
-    {
-        return (int) round(
-            $hours * (float) $this->hourly_rate
+        $this->total_salary = (int) round(
+            (float) $this->modal_total_hours * (float) $this->modal_hourly_rate
         );
     }
 
@@ -172,15 +167,11 @@ new class extends Component
     #[Computed]
     public function currentMonthData()
     {
-        if (
-            ! $this->selected_year_id ||
-            ! $this->selected_month_id
-        ) {
+        if (! $this->selected_year_id || ! $this->selected_month_id) {
             return collect();
         }
 
         $weeks = $this->selectedWeeks();
-
         $searchTerms = array_filter(explode(' ', trim($this->search)));
 
         return Profile::query()
@@ -201,30 +192,32 @@ new class extends Component
                 $salaries = $this->profileWeeklySalaries($profile->id);
 
                 $completedWeeks = $weeks->filter(
-                    fn ($week) => $salaries->has($week->id)
+                    fn ($week) => $salaries->has($week->id) && (float)($salaries->get($week->id)->overtime_hours ?? 0) >= 0
                 )->count();
 
                 $totalHours = $weeks->sum(
-                    fn ($week) => (float) (
-                        $salaries->get($week->id)?->overtime_hours ?? 0
-                    )
+                    fn ($week) => (float) ($salaries->get($week->id)?->overtime_hours ?? 0)
                 );
 
-                $isComplete = $weeks->isNotEmpty()
-                    && $completedWeeks === $weeks->count();
+                $calculatedMonthSalary = $weeks->sum(function ($week) use ($salaries, $profile) {
+                    $sal = $salaries->get($week->id);
+                    if (! $sal) return 0;
+                    $h = (float) ($sal->overtime_hours ?? 0);
+                    $r = (float) ($sal->hourly_rate > 0 ? $sal->hourly_rate : ($profile->hourly_rate ?? 70000));
+                    return (int) round($h * $r);
+                });
+
+                $isComplete = $weeks->isNotEmpty() && $completedWeeks === $weeks->count();
 
                 $isPaid = $salaries->contains(
                     fn ($salary) => $salary->status === 'paid'
                 );
 
-                $isApproved = ! $isPaid
-                    && $salaries->contains(
+                $isApproved = ! $isPaid && $salaries->contains(
                         fn ($salary) => $salary->status === 'approved'
                     );
 
-                $finalSalary = $isComplete
-                    ? $this->calculateSalary($totalHours)
-                    : 0;
+                $finalSalary = $isComplete ? $calculatedMonthSalary : 0;
 
                 return [
                     'profile' => $profile,
@@ -243,16 +236,8 @@ new class extends Component
 
     public function openSalaryModal(int $profileId, int $weekId): void
     {
-        if (
-            ! $this->selected_year_id ||
-            ! $this->selected_month_id ||
-            ! $weekId
-        ) {
-            $this->addError(
-                'salary_error',
-                'ابتدا سال، ماه و هفته را انتخاب کنید.'
-            );
-
+        if (! $this->selected_year_id || ! $this->selected_month_id || ! $weekId) {
+            $this->addError('salary_error', 'ابتدا سال، ماه و هفته را انتخاب کنید.');
             return;
         }
 
@@ -265,10 +250,7 @@ new class extends Component
             ->firstOrFail();
 
         $this->profile_id = $profile->id;
-        $this->profile_name = trim(
-            ($profile->first_name ?? '') . ' ' .
-            ($profile->last_name ?? '')
-        );
+        $this->profile_name = trim(($profile->first_name ?? '') . ' ' . ($profile->last_name ?? ''));
         $this->selected_week_id = $week->id;
 
         $salary = Salary::query()
@@ -287,9 +269,9 @@ new class extends Component
 
         $this->is_record_locked = $alreadyPaidOrApproved;
         $this->salary_id = $salary?->id;
-        $this->modal_total_hours = (float) (
-            $salary?->overtime_hours ?? 0
-        );
+        $this->modal_total_hours = (float) ($salary?->overtime_hours ?? 0);
+        $this->modal_hourly_rate = (float) ($salary?->hourly_rate > 0 ? $salary->hourly_rate : ($profile->hourly_rate ?? 70000));
+
         $this->recalculateSalary();
 
         Flux::modal('salary-modal')->show();
@@ -302,24 +284,25 @@ new class extends Component
             'selected_month_id' => 'required|exists:payroll_months,id',
             'selected_week_id' => 'required|exists:payroll_weeks,id',
             'profile_id' => 'required|exists:profiles,id',
-            'hourly_rate' => 'required|numeric|min:0',
+            'modal_hourly_rate' => 'required|numeric|min:0',
             'modal_total_hours' => 'required|numeric|min:0',
         ], [
             'selected_year_id.required' => 'انتخاب سال الزامی است.',
             'selected_month_id.required' => 'انتخاب ماه الزامی است.',
             'selected_week_id.required' => 'انتخاب هفته الزامی است.',
             'profile_id.required' => 'انتخاب پرسنل الزامی است.',
-            'hourly_rate.required' => 'نرخ هر ساعت را وارد نمایید.',
-            'hourly_rate.numeric' => 'نرخ ساعتی باید عدد باشد.',
+            'modal_hourly_rate.required' => 'نرخ هر ساعت را وارد نمایید.',
+            'modal_hourly_rate.numeric' => 'نرخ ساعتی باید عدد باشد.',
             'modal_total_hours.required' => 'ساعات کارکرد را وارد نمایید.',
             'modal_total_hours.numeric' => 'ساعات باید عدد باشد.',
         ]);
 
         $hours = (float) $this->modal_total_hours;
+        $rate = (float) $this->modal_hourly_rate;
+        $amount = (int) round($hours * $rate);
 
         try {
-            DB::transaction(function () use ($hours) {
-                // اگر قبلاً پرداخت شده، اجازه ندهیم
+            DB::transaction(function () use ($hours, $rate, $amount) {
                 $alreadyPaid = Salary::query()
                     ->where('profile_id', $this->profile_id)
                     ->where('payroll_year_id', $this->selected_year_id)
@@ -328,12 +311,9 @@ new class extends Component
                     ->exists();
 
                 if ($alreadyPaid) {
-                    throw new \Exception(
-                        'فیش حقوقی قبلاً پرداخت شده و قابل ویرایش نیست.'
-                    );
+                    throw new \Exception('فیش حقوقی قبلاً پرداخت شده و قابل ویرایش نیست.');
                 }
 
-                // ذخیره رکورد هفته (همیشه pending)
                 Salary::updateOrCreate(
                     [
                         'profile_id' => $this->profile_id,
@@ -342,32 +322,27 @@ new class extends Component
                         'payroll_week_id' => $this->selected_week_id,
                     ],
                     [
-                        'base_salary' => 0,
+                        'base_salary' => $amount,
+                        'hourly_rate' => $rate,
                         'overtime_hours' => $hours,
                         'overtime_amount' => 0,
                         'deduction_amount' => 0,
-                        'net_salary' => 0,
+                        'net_salary' => $amount,
                         'status' => 'pending',
                     ]
                 );
 
-                // بعد از ذخیره، اگر فیش قبلاً approved شده بود،
-                // آن را به pending برگردان تا دوباره باید صادر شود
                 Salary::query()
                     ->where('profile_id', $this->profile_id)
                     ->where('payroll_year_id', $this->selected_year_id)
                     ->where('payroll_month_id', $this->selected_month_id)
                     ->where('status', 'approved')
                     ->update([
-                        'net_salary' => 0,
                         'status' => 'pending',
                     ]);
             });
 
-            session()->flash(
-                'success',
-                'ساعات هفته با موفقیت ذخیره شد.'
-            );
+            session()->flash('success', 'اطلاعات ساعت کارکرد و نرخ هفتگی ذخیره شد.');
 
             Flux::modal('salary-modal')->close();
 
@@ -376,6 +351,7 @@ new class extends Component
                 'profile_id',
                 'profile_name',
                 'modal_total_hours',
+                'modal_hourly_rate',
                 'total_salary',
                 'is_record_locked',
             ]);
@@ -391,125 +367,59 @@ new class extends Component
 
     public function issueSalary(int $profileId): void
     {
-        if (
-            ! $this->selected_year_id ||
-            ! $this->selected_month_id
-        ) {
+        if (! $this->selected_year_id || ! $this->selected_month_id) {
             return;
         }
 
         try {
             DB::transaction(function () use ($profileId) {
-                // بررسی اینکه همه هفته‌ها پر شده باشد
                 $weeks = $this->selectedWeeks();
                 $salaries = $this->profileWeeklySalaries($profileId);
 
                 $isComplete = $weeks->isNotEmpty()
-                    && $weeks->every(
-                        fn ($week) => $salaries->has($week->id)
-                    );
+                    && $weeks->every(fn ($week) => $salaries->has($week->id));
 
                 if (! $isComplete) {
-                    throw new \Exception(
-                        'هنوز همه هفته‌های این ماه تکمیل نشده است.'
-                    );
+                    throw new \Exception('هنوز همه هفته‌های این ماه تکمیل نشده است.');
                 }
 
-                $totalHours = $weeks->sum(
-                    fn ($week) => (float) (
-                        $salaries->get($week->id)?->overtime_hours ?? 0
-                    )
-                );
-
-                $finalSalary = $this->calculateSalary($totalHours);
-
-                // همه رکوردهای ماه را pending کن
                 Salary::query()
                     ->where('profile_id', $profileId)
                     ->where('payroll_year_id', $this->selected_year_id)
                     ->where('payroll_month_id', $this->selected_month_id)
                     ->update([
-                        'net_salary' => 0,
-                        'status' => 'pending',
-                    ]);
-
-                // یک رکورد (هفته اول) را approved با مبلغ کامل کن
-                $firstWeek = $weeks->first();
-                Salary::query()
-                    ->where('profile_id', $profileId)
-                    ->where('payroll_year_id', $this->selected_year_id)
-                    ->where('payroll_month_id', $this->selected_month_id)
-                    ->where('payroll_week_id', $firstWeek->id)
-                    ->update([
-                        'base_salary' => $finalSalary,
-                        'net_salary' => $finalSalary,
                         'status' => 'approved',
                     ]);
             });
 
-            session()->flash(
-                'success',
-                'فیش حقوقی با موفقیت صادر شد.'
-            );
-
+            session()->flash('success', 'فیش حقوقی ماه با موفقیت صادر گردید.');
             unset($this->currentMonthData);
         } catch (\Throwable $e) {
-            $this->addError(
-                'salary_error',
-                'خطا در صدور فیش: ' . $e->getMessage()
-            );
+            $this->addError('salary_error', 'خطا در صدور فیش: ' . $e->getMessage());
         }
     }
 
     public function markAsPaid(int $profileId): void
     {
-        if (
-            ! $this->selected_year_id ||
-            ! $this->selected_month_id
-        ) {
+        if (! $this->selected_year_id || ! $this->selected_month_id) {
             return;
         }
 
         try {
             DB::transaction(function () use ($profileId) {
-                // مبلغ فیش نهایی را از رکورد approved می‌خوانیم
-                $finalSalary = (float) Salary::query()
-                    ->where('profile_id', $profileId)
-                    ->where('payroll_year_id', $this->selected_year_id)
-                    ->where('payroll_month_id', $this->selected_month_id)
-                    ->where('status', 'approved')
-                    ->value('net_salary');
-
-                if ($finalSalary <= 0) {
-                    $finalSalary = (float) Salary::query()
-                        ->where('profile_id', $profileId)
-                        ->where('payroll_year_id', $this->selected_year_id)
-                        ->where('payroll_month_id', $this->selected_month_id)
-                        ->sum('net_salary');
-                }
-
-                // همه رکوردهای ماه را paid و با مبلغ فیش نهایی کن
                 Salary::query()
                     ->where('profile_id', $profileId)
                     ->where('payroll_year_id', $this->selected_year_id)
                     ->where('payroll_month_id', $this->selected_month_id)
                     ->update([
-                        'net_salary' => $finalSalary,
                         'status' => 'paid',
                     ]);
             });
 
-            session()->flash(
-                'success',
-                'فیش حقوقی با موفقیت پرداخت شد.'
-            );
-
+            session()->flash('success', 'پرداخت فیش حقوقی ثبت شد.');
             unset($this->currentMonthData);
         } catch (\Throwable $e) {
-            $this->addError(
-                'salary_error',
-                'خطا در پرداخت: ' . $e->getMessage()
-            );
+            $this->addError('salary_error', 'خطا در پرداخت: ' . $e->getMessage());
         }
     }
 };

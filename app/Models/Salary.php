@@ -15,6 +15,7 @@ class Salary extends Model
         'payroll_month_id',
         'payroll_week_id',
         'base_salary',
+        'hourly_rate',
         'overtime_hours',
         'overtime_amount',
         'deduction_amount',
@@ -28,7 +29,9 @@ class Salary extends Model
         'payroll_year_id' => 'integer',
         'payroll_month_id' => 'integer',
         'payroll_week_id' => 'integer',
+
         'base_salary' => 'decimal:2',
+        'hourly_rate' => 'decimal:2',
         'overtime_hours' => 'decimal:2',
         'overtime_amount' => 'decimal:2',
         'deduction_amount' => 'decimal:2',
